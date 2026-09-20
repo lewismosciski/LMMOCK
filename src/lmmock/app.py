@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import secrets
 import time
 import uuid
@@ -10,7 +9,6 @@ from collections import deque
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,9 +17,6 @@ from . import __version__
 from .config import data_dir
 from .engine import SemanticReply, SemanticRequest, request_from, resolve
 from .storage import Store
-
-
-HOP_HEADERS = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade", "content-length", "host"}
 
 
 class State:
@@ -196,58 +191,18 @@ async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, resp
     yield _sse({"type": "message_stop"}, "message_stop")
 
 
-async def _proxy(request: Request, provider: str, endpoint: str, body: bytes, stream: bool, store: Store) -> Response | None:
-    settings = store.get_settings()
-    base = settings.get("openai_base_url" if provider == "openai" else "anthropic_base_url") or os.getenv(f"LMMOCK_{provider.upper()}_BASE_URL", "")
-    api_key = os.getenv(f"LMMOCK_{provider.upper()}_API_KEY", "")
-    if not base:
-        return None
-    base = base.rstrip("/")
-    if provider == "openai" and base.endswith("/v1") and endpoint.startswith("/v1/"):
-        target = base + endpoint[3:]
-    else:
-        target = base + endpoint
-    headers = {name: value for name, value in request.headers.items() if name.lower() in {"content-type", "accept", "anthropic-version", "anthropic-beta"}}
-    if provider == "openai" and api_key:
-        headers["authorization"] = f"Bearer {api_key}"
-    if provider == "anthropic" and api_key:
-        headers["x-api-key"] = api_key
-    client = httpx.AsyncClient(timeout=60)
-    try:
-        upstream = await client.send(client.build_request("POST", target, headers=headers, content=body), stream=stream)
-    except httpx.HTTPError:
-        await client.aclose()
-        raise
-    response_headers = {name: value for name, value in upstream.headers.items() if name.lower() not in HOP_HEADERS}
-    if not stream:
-        content = await upstream.aread()
-        await upstream.aclose()
-        await client.aclose()
-        return Response(content=content, status_code=upstream.status_code, headers=response_headers, media_type=upstream.headers.get("content-type"))
-
-    async def stream_body() -> AsyncIterator[bytes]:
-        try:
-            async for chunk in upstream.aiter_raw():
-                yield chunk
-        finally:
-            await upstream.aclose()
-            await client.aclose()
-
-    return StreamingResponse(stream_body(), status_code=upstream.status_code, headers=response_headers, media_type=upstream.headers.get("content-type"))
-
-
-def create_app(storage_dir: Path | None = None, access_key: str | None = None) -> FastAPI:
+def create_app(storage_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="LMMock", version=__version__, docs_url=None, redoc_url=None)
     store = Store((storage_dir or data_dir()) / "lmmock.sqlite3")
     state = State(store)
-    required_key = os.getenv("LMMOCK_API_KEY", "") if access_key is None else access_key
     app.state.lmmock = state
     static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     @app.middleware("http")
     async def authenticate(request: Request, call_next: Any) -> Response:
-        protected = request.url.path.startswith("/v1/") or request.url.path.startswith("/__lmmock/api/")
+        required_key = str(store.get_settings().get("api_key", ""))
+        protected = request.url.path.startswith("/v1/")
         if required_key and protected:
             authorization = request.headers.get("authorization", "")
             bearer = authorization[7:] if authorization.lower().startswith("bearer ") else ""
@@ -268,7 +223,7 @@ def create_app(storage_dir: Path | None = None, access_key: str | None = None) -
     async def healthz() -> dict[str, Any]:
         return {"ok": True, "name": "lmmock", "version": __version__, "mode": "mock-first"}
 
-    async def handle(provider: str, operation: str, endpoint: str, request: Request) -> Response:
+    async def handle(provider: str, operation: str, request: Request) -> Response:
         raw = await request.body()
         try:
             body = json.loads(raw or b"{}")
@@ -281,7 +236,6 @@ def create_app(storage_dir: Path | None = None, access_key: str | None = None) -
             return JSONResponse({"error": {"message": f"The {operation} endpoint is disabled.", "type": "not_found_error"}}, status_code=404)
         body = dict(body)
         body.setdefault("model", settings["default_model"])
-        forwarding = bool(settings.get("forward_openai" if provider == "openai" else "forward_anthropic", False))
         semantic = request_from(provider, operation, body)
         if semantic.model not in settings["models"]:
             error = SemanticReply("error", text=f"Model '{semantic.model}' is not configured in LMMock.", status_code=404, error_type="model_not_found")
@@ -309,37 +263,7 @@ def create_app(storage_dir: Path | None = None, access_key: str | None = None) -
                 "response": _snapshot(response_body),
             })
 
-        async def forward() -> Response:
-            request_id = _id("req")
-            try:
-                proxied = await _proxy(request, provider, endpoint, raw, semantic.stream, store)
-            except httpx.HTTPError:
-                proxied = None
-                message = "Upstream request failed. Check the provider URL and network connection."
-            else:
-                message = "Proxy mode requires a provider base URL."
-            if proxied is None:
-                error = SemanticReply("error", text=message, status_code=502, error_type="upstream_error")
-                record(request_id, "upstream", 502, _error_payload(provider, error))
-                return _error(provider, error, request_id)
-            if semantic.stream:
-                response_body: Any = {
-                    "forwarded": True,
-                    "status": proxied.status_code,
-                    "note": "Streaming response bodies are not retained.",
-                }
-            else:
-                content = getattr(proxied, "body", b"")
-                try:
-                    response_body = json.loads(content)
-                except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
-                    response_body = {"forwarded": True, "status": proxied.status_code, "body": bytes(content).decode("utf-8", errors="replace")}
-            record(request_id, "upstream", proxied.status_code, response_body)
-            return proxied
-
         rule, reply = resolve(store.list_rules(group["id"]), semantic)
-        if reply is None and forwarding:
-            return await forward()
         if reply is None:
             reply = SemanticReply("text", text="No rule matched.")
         if rule and rule.get("delay_ms"):
@@ -376,19 +300,19 @@ def create_app(storage_dir: Path | None = None, access_key: str | None = None) -
 
     @app.post("/v1/chat/completions")
     async def chat(request: Request) -> Response:
-        return await handle("openai", "chat", "/v1/chat/completions", request)
+        return await handle("openai", "chat", request)
 
     @app.post("/v1/responses")
     async def responses(request: Request) -> Response:
-        return await handle("openai", "responses", "/v1/responses", request)
+        return await handle("openai", "responses", request)
 
     @app.post("/v1/completions")
     async def completions(request: Request) -> Response:
-        return await handle("openai", "completions", "/v1/completions", request)
+        return await handle("openai", "completions", request)
 
     @app.post("/v1/messages")
     async def messages(request: Request) -> Response:
-        return await handle("anthropic", "messages", "/v1/messages", request)
+        return await handle("anthropic", "messages", request)
 
     @app.post("/v1/messages/count_tokens")
     async def count_message_tokens(request: Request) -> Response:
@@ -415,7 +339,7 @@ def create_app(storage_dir: Path | None = None, access_key: str | None = None) -
     @app.get("/__lmmock/api/info")
     async def info() -> dict[str, Any]:
         settings = store.get_settings()
-        return {"name": "LMMock", "version": __version__, "providers": ["openai", "anthropic"], "operations": settings["enabled_operations"], "models": settings["models"], "authentication": bool(required_key), "data_dir": str(store.path.parent), "rules": len(store.list_rules()), "groups": len(store.list_groups())}
+        return {"name": "LMMock", "version": __version__, "providers": ["openai", "anthropic"], "operations": settings["enabled_operations"], "models": settings["models"], "authentication": bool(settings["api_key"]), "data_dir": str(store.path.parent), "rules": len(store.list_rules()), "groups": len(store.list_groups())}
 
     @app.get("/__lmmock/api/rules")
     async def list_rules(group_id: int | None = None) -> list[dict[str, Any]]:
@@ -490,7 +414,7 @@ def create_app(storage_dir: Path | None = None, access_key: str | None = None) -
 
     @app.get("/__lmmock/api/settings")
     async def settings() -> dict[str, Any]:
-        return {**store.get_settings(), "lmmock_api_key_configured": bool(required_key)}
+        return store.get_settings()
 
     @app.put("/__lmmock/api/settings")
     async def update_settings(request: Request) -> Response:

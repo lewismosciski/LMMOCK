@@ -28,9 +28,5 @@ def port() -> int:
     return int(env_or("LMMOCK_PORT", "17321"))
 
 
-def api_key() -> str:
-    return os.getenv("LMMOCK_API_KEY", "")
-
-
 def no_browser() -> bool:
     return os.getenv("LMMOCK_NO_BROWSER", "").lower() in {"1", "true", "yes"}

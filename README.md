@@ -15,7 +15,7 @@
 <p align="center">
   <a href="https://github.com/lewismosciski/LMMOCK/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/lewismosciski/LMMOCK/ci.yml?branch=main&style=flat-square&label=tests" alt="Tests"></a>
   <a href="https://github.com/lewismosciski/LMMOCK/releases"><img src="https://img.shields.io/github/v/release/lewismosciski/LMMOCK?include_prereleases&style=flat-square" alt="Release"></a>
-  <a href="https://github.com/lewismosciski/LMMOCK/blob/main/LICENSE"><img src="https://img.shields.io/github/license/lewismosciski/LMMOCK?style=flat-square" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
 </p>
 
@@ -95,14 +95,13 @@ client.models.list()
 
 ## Use with Claude Code
 
-LMMock exposes Anthropic-format Messages and Models APIs. Start LMMock with a key, point Claude Code to it, enable gateway model discovery, then choose `mock-model` from `/model`:
+LMMock exposes Anthropic-format Messages and Models APIs. Set the optional Mock API key to `local-test-key` in the web Configuration, point Claude Code to LMMock, enable gateway model discovery, then choose `mock-model` from `/model`:
 
 ```bash
-export LMMOCK_API_KEY="local-test-key"
 python3 run.py
 
 export ANTHROPIC_BASE_URL="http://127.0.0.1:17321"
-export ANTHROPIC_AUTH_TOKEN="$LMMOCK_API_KEY"
+export ANTHROPIC_AUTH_TOKEN="local-test-key"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
 claude
 ```
@@ -124,7 +123,7 @@ env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```
 
-Then start both processes with the same local key:
+Set the optional Mock API key to `local-test-key` in the web Configuration. The environment variable below is read by Codex because `env_key` points to it; LMMock reads its value from the web UI:
 
 ```bash
 export LMMOCK_API_KEY="local-test-key"
@@ -136,16 +135,13 @@ Codex provider settings belong in the user configuration, not a project-local fi
 
 ## Network access and API keys
 
-Localhost is the safe default. To share LMMock on a LAN or behind a reverse proxy, bind to all interfaces and require a key:
+Localhost is the safe default. To share LMMock on a trusted LAN, bind to all interfaces:
 
 ```bash
-export LMMOCK_API_KEY="choose-a-long-random-key"
 python3 run.py --host 0.0.0.0
 ```
 
-Clients may send the key as `Authorization: Bearer ...` or `x-api-key: ...`. The equivalent environment variables are `LMMOCK_HOST` and `LMMOCK_API_KEY`. Read [SECURITY.md](SECURITY.md) before exposing the server.
-
-Provider forwarding is optional and off by default. Real upstream keys come only from `LMMOCK_OPENAI_API_KEY` and `LMMOCK_ANTHROPIC_API_KEY`; they are never returned by the management API.
+Then open Configuration and optionally set a Mock API key. Clients may send it as `Authorization: Bearer ...` or `x-api-key: ...`. The key is intentionally visible in the web UI and stored in the local SQLite database. It protects model endpoints only; the management UI and management API remain open. Read [SECURITY.md](SECURITY.md) before exposing the server.
 
 ## Contributing
 

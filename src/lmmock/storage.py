@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -232,23 +231,12 @@ class Store:
             "default_model": "mock-model",
             "enabled_operations": ["chat", "completions", "responses", "messages"],
             "active_group_id": self.list_groups()[0]["id"],
-            "forward_openai": False,
-            "forward_anthropic": False,
-            "openai_base_url": "",
-            "anthropic_base_url": "",
-            "openai_api_key_configured": bool(os.getenv("LMMOCK_OPENAI_API_KEY")),
-            "anthropic_api_key_configured": bool(os.getenv("LMMOCK_ANTHROPIC_API_KEY")),
+            "api_key": "",
         }
         saved = {row["key"]: json.loads(row["value"]) for row in rows}
         for key in result:
             if key in saved:
                 result[key] = saved[key]
-        # Migrate settings written by versions that exposed three proxy modes.
-        for provider in ("openai", "anthropic"):
-            forward_key = f"forward_{provider}"
-            mode_key = f"mode_{provider}"
-            if forward_key not in saved and mode_key in saved:
-                result[forward_key] = saved[mode_key] != "mock-only"
         if "models" not in saved and "model" in saved:
             result["models"] = [str(saved["model"])]
             result["default_model"] = str(saved["model"])
@@ -260,7 +248,7 @@ class Store:
     def set_settings(self, values: dict[str, Any]) -> dict[str, Any]:
         allowed = {
             "models", "default_model", "enabled_operations", "active_group_id",
-            "forward_openai", "forward_anthropic", "openai_base_url", "anthropic_base_url",
+            "api_key",
         }
         candidate = self.get_settings()
         candidate.update({key: value for key, value in values.items() if key in allowed})
@@ -293,10 +281,7 @@ class Store:
             for key in values:
                 if key in allowed:
                     value = normalized[key]
-                    if key in {"forward_openai", "forward_anthropic"}:
-                        if not isinstance(value, bool):
-                            raise ValueError(f"{key} must be true or false")
-                    if key.endswith("base_url"):
+                    if key == "api_key":
                         value = str(value or "")[:500]
                     conn.execute("INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)", (key, json.dumps(value)))
             conn.commit()

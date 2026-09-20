@@ -15,7 +15,7 @@
 <p align="center">
   <a href="https://github.com/lewismosciski/LMMOCK/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/lewismosciski/LMMOCK/ci.yml?branch=main&style=flat-square&label=tests" alt="测试状态"></a>
   <a href="https://github.com/lewismosciski/LMMOCK/releases"><img src="https://img.shields.io/github/v/release/lewismosciski/LMMOCK?include_prereleases&style=flat-square" alt="发行版本"></a>
-  <a href="https://github.com/lewismosciski/LMMOCK/blob/main/LICENSE"><img src="https://img.shields.io/github/license/lewismosciski/LMMOCK?style=flat-square" alt="开源协议"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT 开源协议"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
 </p>
 
@@ -95,14 +95,13 @@ client.models.list()
 
 ## 在 Claude Code 中使用
 
-LMMock 提供 Anthropic Messages 和 Models 兼容接口。使用密钥启动 LMMock，把 Claude Code 指向本地服务，开启 Gateway 模型发现，然后在 `/model` 中选择 `mock-model`：
+LMMock 提供 Anthropic Messages 和 Models 兼容接口。先在网页 Configuration 中把可选的 Mock API Key 设为 `local-test-key`，再把 Claude Code 指向本地服务，开启 Gateway 模型发现，然后在 `/model` 中选择 `mock-model`：
 
 ```bash
-export LMMOCK_API_KEY="local-test-key"
 python3 run.py
 
 export ANTHROPIC_BASE_URL="http://127.0.0.1:17321"
-export ANTHROPIC_AUTH_TOKEN="$LMMOCK_API_KEY"
+export ANTHROPIC_AUTH_TOKEN="local-test-key"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
 claude
 ```
@@ -124,7 +123,7 @@ env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```
 
-然后使用同一个本地密钥启动两个进程：
+先在网页 Configuration 中把可选的 Mock API Key 设为 `local-test-key`。下面的环境变量由 Codex 读取，因为 `env_key` 指向它；LMMock 的值来自网页配置：
 
 ```bash
 export LMMOCK_API_KEY="local-test-key"
@@ -136,16 +135,13 @@ Codex 的 Provider 设置必须放在用户级配置中，而不是项目本地�
 
 ## 网络访问与 API Key
 
-默认只监听本机。需要在局域网共享或放到反向代理之后时，应同时监听所有网卡并启用密钥：
+默认只监听本机。需要在可信局域网共享时，可以监听所有网卡：
 
 ```bash
-export LMMOCK_API_KEY="choose-a-long-random-key"
 python3 run.py --host 0.0.0.0
 ```
 
-客户端可以通过 `Authorization: Bearer ...` 或 `x-api-key: ...` 发送密钥。对应环境变量为 `LMMOCK_HOST` 和 `LMMOCK_API_KEY`。暴露服务前请阅读 [SECURITY.md](SECURITY.md)。
-
-上游转发默认关闭。真实 Provider 密钥只从 `LMMOCK_OPENAI_API_KEY` 和 `LMMOCK_ANTHROPIC_API_KEY` 读取，管理 API 不会返回密钥。
+然后打开 Configuration，按需设置 Mock API Key。客户端可以通过 `Authorization: Bearer ...` 或 `x-api-key: ...` 发送密钥。该值会直接显示在网页中，并保存在本地 SQLite 数据库；它只保护模型接口，管理页面和管理 API 始终开放。暴露服务前请阅读 [SECURITY.md](SECURITY.md)。
 
 ## 参与贡献
 

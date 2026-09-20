@@ -11,7 +11,7 @@ import uvicorn
 
 from . import __version__
 from .app import create_app
-from .config import api_key, data_dir, host, no_browser, port
+from .config import data_dir, host, no_browser, port
 
 
 def _open_browser(address: str) -> None:
@@ -32,7 +32,6 @@ def main(argv: list[str] | None = None) -> int:
         target.add_argument("--host", default=host())
         target.add_argument("--port", type=int, default=port())
         target.add_argument("--data-dir", default=str(data_dir()))
-        target.add_argument("--api-key", default=api_key(), help="require this key on API and management requests")
         target.add_argument("--no-open-browser", action="store_true")
     sub.add_parser("version")
     sub.add_parser("data-dir")
@@ -50,9 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"LMMock listening at {address}")
     print(f"OpenAI base URL: {address}/v1")
     print(f"Anthropic base URL: {address}")
-    if args.host not in {"127.0.0.1", "localhost", "::1"} and not args.api_key:
-        print("Warning: LMMock is listening beyond localhost without API key protection.")
-    elif args.api_key:
-        print("API key protection: enabled")
-    uvicorn.run(create_app(Path(args.data_dir), access_key=args.api_key), host=args.host, port=args.port, log_level="info")
+    if args.host not in {"127.0.0.1", "localhost", "::1"}:
+        print("Warning: LMMock is listening beyond localhost. Configure the optional Mock API key in the web UI.")
+    uvicorn.run(create_app(Path(args.data_dir)), host=args.host, port=args.port, log_level="info")
     return 0

@@ -15,7 +15,6 @@
       <span><strong>LMMock</strong><small data-i18n="localWorkspace">local workspace</small></span>
     </a>
     <div class="topbar-actions">
-      <button id="access-key-button" class="key-button" type="button"><span class="key-dot"></span><span data-i18n="apiKey">API key</span></button>
       <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch language">EN</button>
     </div>
   </header>
@@ -113,7 +112,7 @@
       </section>
 
       <details class="panel settings-panel" open>
-        <summary><span><span class="kicker" data-i18n="configuration">CONFIGURATION</span><strong data-i18n="modelsInterfacesSecurity">Models, interfaces &amp; security</strong><small data-i18n="configurationHelp">Control what LMMock exposes before configuring optional forwarding.</small></span><b data-i18n="configure">Configure</b></summary>
+        <summary><span><span class="kicker" data-i18n="configuration">CONFIGURATION</span><strong data-i18n="modelsInterfacesSecurity">Models, interfaces &amp; API key</strong><small data-i18n="configurationHelp">Control the mock API exposed by LMMock.</small></span><b data-i18n="configure">Configure</b></summary>
         <form id="settings-form">
           <section class="settings-section">
             <div class="settings-section-title"><strong data-i18n="mockSurface">Mock API surface</strong><small data-i18n="mockSurfaceHelp">One model per line. Disabled interfaces return 404.</small></div>
@@ -129,23 +128,8 @@
             </div>
           </section>
           <section class="settings-section">
-            <div class="settings-section-title"><strong data-i18n="accessSecurity">Access security</strong><small data-i18n="accessSecurityHelp">Set the server key with --api-key or LMMOCK_API_KEY, then enter it in this browser session.</small></div>
-            <p id="access-status" class="setting-note"></p>
-            <button id="open-access-key" type="button" class="button secondary" data-i18n="enterApiKey">Enter API key</button>
-          </section>
-          <section class="settings-section">
-            <div class="settings-section-title"><strong data-i18n="providerForwarding">Provider forwarding</strong><small data-i18n="forwardHelp">When enabled, only requests that match no rule reach the real API.</small></div>
-          <div class="provider-row">
-            <strong>OpenAI</strong>
-            <label class="forward-control"><span data-i18n="forwardUnmatched">Forward unmatched requests</span><span class="switch"><input id="openai-forward" type="checkbox"><span></span></span></label>
-            <label><span data-i18n="baseUrl">Base URL</span><input id="openai-base" placeholder="https://api.openai.com"></label>
-          </div>
-          <div class="provider-row">
-            <strong>Anthropic</strong>
-            <label class="forward-control"><span data-i18n="forwardUnmatched">Forward unmatched requests</span><span class="switch"><input id="anthropic-forward" type="checkbox"><span></span></span></label>
-            <label><span data-i18n="baseUrl">Base URL</span><input id="anthropic-base" placeholder="https://api.anthropic.com"></label>
-          </div>
-          <p id="key-status" class="setting-note">API keys are read from environment variables.</p>
+            <div class="settings-section-title"><strong data-i18n="mockApiKey">Mock API key</strong><small data-i18n="mockApiKeyHelp">Optional. Clients must send this value to call /v1 endpoints. It is shown here because LMMock only returns mock data.</small></div>
+            <label><span data-i18n="apiKey">API key</span><input id="mock-api-key" type="text" autocomplete="off" data-i18n-placeholder="apiKeyPlaceholder" placeholder="Leave blank to allow requests without a key"></label>
           </section>
           <button type="submit" class="button secondary" data-i18n="saveSettings">Save settings</button>
         </form>
@@ -168,15 +152,6 @@
       <label><span data-i18n="name">Name</span><input id="group-name" maxlength="120" required></label>
       <label><span data-i18n="description">Description</span><textarea id="group-description" rows="3"></textarea></label>
       <div class="form-actions"><button class="button primary" type="submit" data-i18n="saveGroup">Save group</button><button id="delete-group" class="button danger" type="button" data-i18n="delete">Delete</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="access-key-dialog" class="small-dialog">
-    <form id="access-key-form">
-      <div class="dialog-heading"><div><p class="kicker" data-i18n="accessSecurity">ACCESS SECURITY</p><h2 data-i18n="enterApiKey">Enter API key</h2></div><button id="close-access-key-dialog" type="button" class="icon-button">×</button></div>
-      <label><span data-i18n="apiKey">API key</span><input id="access-key" type="password" autocomplete="off"></label>
-      <p class="setting-note" data-i18n="browserKeyHelp">Stored only for this browser tab. Leave blank to clear it.</p>
-      <button class="button primary" type="submit" data-i18n="useApiKey">Use API key</button>
     </form>
   </dialog>
 

@@ -4,7 +4,6 @@ import sqlite3
 import httpx
 import pytest
 
-import lmmock.app as app_module
 from lmmock.app import create_app
 from lmmock.config import port
 from lmmock.storage import Store
@@ -28,7 +27,7 @@ async def test_health_ui_and_default_chat(app):
         assert "MOCK-FIRST" not in ui.text
         assert 'id="language-toggle"' in ui.text
         assert 'id="language-toggle" class="language-toggle" type="button" aria-label="Switch language">EN' in ui.text
-        assert 'id="openai-forward"' in ui.text
+        assert 'id="mock-api-key"' in ui.text
         assert 'id="request-dialog"' in ui.text
         assert 'id="playground-request"' in ui.text
         assert 'id="playground-output"' in ui.text
@@ -93,61 +92,29 @@ async def test_models_dispatch_by_anthropic_header(app):
 
 
 @pytest.mark.asyncio
-async def test_provider_settings_are_persisted_without_keys(app):
+async def test_mock_api_key_is_visible_and_persisted(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-        saved = await client.put("/__lmmock/api/settings", json={
-            "forward_openai": True,
-            "openai_base_url": "https://api.openai.com",
-        })
+        saved = await client.put("/__lmmock/api/settings", json={"api_key": "visible-test-key"})
         settings = await client.get("/__lmmock/api/settings")
-        invalid = await client.put("/__lmmock/api/settings", json={"forward_openai": "yes"})
     assert saved.status_code == 200
-    assert settings.json()["forward_openai"] is True
-    assert "mode_openai" not in settings.json()
-    assert settings.json()["openai_base_url"] == "https://api.openai.com"
-    assert "api_key" not in settings.json()
-    assert invalid.status_code == 400
+    assert settings.json()["api_key"] == "visible-test-key"
+    assert "openai_base_url" not in settings.json()
 
 
 @pytest.mark.asyncio
-async def test_forwarding_does_not_call_upstream_when_a_rule_matches(app, monkeypatch):
-    called = False
-
-    async def fake_proxy(*args, **kwargs):
-        nonlocal called
-        called = True
-        return None
-
-    monkeypatch.setattr(app_module, "_proxy", fake_proxy)
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-        await client.put("/__lmmock/api/settings", json={
-            "forward_openai": True,
-            "openai_base_url": "https://api.openai.com",
-        })
-        response = await client.post("/v1/chat/completions", json={
-            "model": "mock-model",
-            "messages": [{"role": "user", "content": "hello"}],
-        })
-    assert response.status_code == 200
-    assert response.json()["choices"][0]["message"]["content"] == "LMMock is running."
-    assert called is False
-
-
-@pytest.mark.asyncio
-async def test_forwarding_requires_a_base_url_when_no_rule_matches(app):
+async def test_no_matching_rule_returns_mock_fallback(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         rules = (await client.get("/__lmmock/api/rules")).json()
         default_rule = rules[0]
         default_rule["enabled"] = False
         await client.put(f"/__lmmock/api/rules/{default_rule['id']}", json=default_rule)
-        await client.put("/__lmmock/api/settings", json={"forward_anthropic": True})
         response = await client.post("/v1/messages", json={
             "model": "mock-model",
             "max_tokens": 32,
             "messages": [{"role": "user", "content": "hello"}],
         })
-    assert response.status_code == 502
-    assert response.json()["error"]["type"] == "upstream_error"
+    assert response.status_code == 200
+    assert response.json()["content"][0]["text"] == "No rule matched."
 
 
 @pytest.mark.asyncio
@@ -205,13 +172,16 @@ async def test_behavior_groups_isolate_rules(app):
 
 
 @pytest.mark.asyncio
-async def test_api_key_protects_model_and_management_apis(tmp_path):
-    protected_app = create_app(tmp_path, access_key="secret-key")
+async def test_api_key_protects_only_model_apis(tmp_path):
+    protected_app = create_app(tmp_path)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=protected_app), base_url="http://test") as client:
+        configured = await client.put("/__lmmock/api/settings", json={"api_key": "secret-key"})
+        assert configured.status_code == 200
         assert (await client.get("/")).status_code == 200
         assert (await client.get("/healthz")).status_code == 200
         assert (await client.get("/v1/models")).status_code == 401
-        assert (await client.get("/__lmmock/api/settings")).status_code == 401
+        settings = await client.get("/__lmmock/api/settings")
+        assert settings.status_code == 200
         bearer = await client.get("/v1/models", headers={"authorization": "Bearer secret-key"})
         api_key = await client.post("/v1/messages", headers={"x-api-key": "secret-key"}, json={
             "model": "mock-model",
@@ -222,11 +192,10 @@ async def test_api_key_protects_model_and_management_apis(tmp_path):
             "model": "mock-model",
             "messages": [{"role": "user", "content": "hello"}],
         })
-        settings = await client.get("/__lmmock/api/settings", headers={"authorization": "Bearer secret-key"})
     assert bearer.status_code == 200
     assert api_key.status_code == 200
     assert tokens.json()["input_tokens"] > 0
-    assert settings.json()["lmmock_api_key_configured"] is True
+    assert settings.json()["api_key"] == "secret-key"
 
 
 def test_existing_database_migrates_to_groups_and_model_list(tmp_path):
@@ -248,7 +217,6 @@ def test_existing_database_migrates_to_groups_and_model_list(tmp_path):
         )
         connection.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         connection.execute("INSERT INTO settings VALUES ('model', '\"old-model\"')")
-        connection.execute("INSERT INTO settings VALUES ('mode_openai', '\"mock-then-proxy\"')")
     store = Store(database)
     rules = store.list_rules()
     settings = store.get_settings()
@@ -256,7 +224,7 @@ def test_existing_database_migrates_to_groups_and_model_list(tmp_path):
     assert rules[0]["group_id"] == store.list_groups()[0]["id"]
     assert settings["models"] == ["old-model"]
     assert settings["default_model"] == "old-model"
-    assert settings["forward_openai"] is True
+    assert settings["api_key"] == ""
 
 
 def test_default_port_is_uncommon(monkeypatch):
