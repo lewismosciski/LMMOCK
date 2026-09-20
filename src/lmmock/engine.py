@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from fnmatch import fnmatchcase
 from dataclasses import dataclass
 from typing import Any
 
@@ -88,6 +89,9 @@ def _template(value: Any, variables: dict[str, str]) -> Any:
 def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict[str, Any] | None, SemanticReply | None]:
     for rule in rules:
         if not rule.get("enabled", True):
+            continue
+        model_patterns = [pattern.strip() for pattern in rule.get("model_pattern", "*").split(",") if pattern.strip()]
+        if not any(fnmatchcase(request.model, pattern) for pattern in model_patterns or ["*"]):
             continue
         if "*" not in rule.get("scopes", ["*"]) and request.operation not in rule.get("scopes", []):
             continue

@@ -12,6 +12,7 @@ DEFAULT_RULE = {
     "name": "Default reply",
     "enabled": True,
     "priority": 1000,
+    "model_pattern": "*",
     "scopes": ["*"],
     "match_type": "all",
     "match_value": "",
@@ -24,6 +25,7 @@ FOOL_AI_RULE = {
     "name": "foolAI",
     "enabled": True,
     "priority": 100,
+    "model_pattern": "*",
     "scopes": ["*"],
     "match_type": "regex",
     "match_value": r"(?:^|\n)(?:user:\s*)?(?P<question>[^\n]+?)(?:[?？]+|[吗么嘛呢])(?:[\"'”’])?\s*$",
@@ -69,6 +71,7 @@ class Store:
                     name TEXT NOT NULL,
                     enabled INTEGER NOT NULL DEFAULT 1,
                     priority INTEGER NOT NULL DEFAULT 100,
+                    model_pattern TEXT NOT NULL DEFAULT '*',
                     scopes TEXT NOT NULL,
                     match_type TEXT NOT NULL,
                     match_value TEXT NOT NULL DEFAULT '',
@@ -88,6 +91,8 @@ class Store:
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(rules)").fetchall()}
             if "group_id" not in columns:
                 conn.execute("ALTER TABLE rules ADD COLUMN group_id INTEGER")
+            if "model_pattern" not in columns:
+                conn.execute("ALTER TABLE rules ADD COLUMN model_pattern TEXT NOT NULL DEFAULT '*'")
             default_group_id = conn.execute("SELECT id FROM groups ORDER BY id LIMIT 1").fetchone()["id"]
             conn.execute("UPDATE rules SET group_id=? WHERE group_id IS NULL", (default_group_id,))
             if conn.execute("SELECT 1 FROM rules LIMIT 1").fetchone() is None:
@@ -112,6 +117,7 @@ class Store:
             "name": row["name"],
             "enabled": bool(row["enabled"]),
             "priority": row["priority"],
+            "model_pattern": row["model_pattern"],
             "scopes": json.loads(row["scopes"]),
             "match_type": row["match_type"],
             "match_value": row["match_value"],
@@ -144,10 +150,10 @@ class Store:
                 raise ValueError("group_id does not exist")
             cur = conn.execute(
                 """INSERT INTO rules
-                (name, enabled, priority, scopes, match_type, match_value, reply_type, reply_json, delay_ms, group_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (name, enabled, priority, model_pattern, scopes, match_type, match_value, reply_type, reply_json, delay_ms, group_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    values["name"], int(values["enabled"]), values["priority"], json.dumps(values["scopes"]),
+                    values["name"], int(values["enabled"]), values["priority"], values["model_pattern"], json.dumps(values["scopes"]),
                     values["match_type"], values["match_value"], values["reply_type"], json.dumps(values["reply"]),
                     values["delay_ms"], values["group_id"], now, now,
                 ),
@@ -166,9 +172,9 @@ class Store:
             if conn.execute("SELECT 1 FROM groups WHERE id=?", (values["group_id"],)).fetchone() is None:
                 raise ValueError("group_id does not exist")
             cur = conn.execute(
-                """UPDATE rules SET name=?, enabled=?, priority=?, scopes=?, match_type=?, match_value=?,
+                """UPDATE rules SET name=?, enabled=?, priority=?, model_pattern=?, scopes=?, match_type=?, match_value=?,
                 reply_type=?, reply_json=?, delay_ms=?, group_id=?, updated_at=? WHERE id=?""",
-                (values["name"], int(values["enabled"]), values["priority"], json.dumps(values["scopes"]),
+                (values["name"], int(values["enabled"]), values["priority"], values["model_pattern"], json.dumps(values["scopes"]),
                  values["match_type"], values["match_value"], values["reply_type"], json.dumps(values["reply"]),
                  values["delay_ms"], values["group_id"], self._now(), rule_id),
             )
@@ -314,6 +320,7 @@ class Store:
         result["name"] = str(result["name"])[:120] or "Untitled rule"
         result["enabled"] = bool(result["enabled"])
         result["priority"] = int(result["priority"])
+        result["model_pattern"] = str(result.get("model_pattern", "*")).strip()[:1000] or "*"
         result["scopes"] = list(result["scopes"] or ["*"])
         result["match_type"] = str(result["match_type"])
         if result["match_type"] not in {"all", "contains", "regex"}:

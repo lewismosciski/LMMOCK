@@ -26,11 +26,11 @@
         <p class="hero-copy" data-i18n="heroCopy">Create deterministic replies for OpenAI and Anthropic clients, then test the same application code without a model call.</p>
       </div>
       <div class="endpoint-list" aria-label="SDK base URLs">
-        <button class="endpoint" data-copy="http://127.0.0.1:17321/v1" title="Copy OpenAI base URL">
-          <span>OpenAI</span><code>127.0.0.1:17321/v1</code><b data-i18n="copy">Copy</b>
+        <button class="endpoint" data-copy="http://127.0.0.1:17321/openai/v1" title="Copy OpenAI-compatible base URL">
+          <span>OpenAI</span><code>127.0.0.1:17321/openai/v1</code><b data-i18n="copy">Copy</b>
         </button>
-        <button class="endpoint" data-copy="http://127.0.0.1:17321" title="Copy Anthropic base URL">
-          <span>Anthropic</span><code>127.0.0.1:17321</code><b data-i18n="copy">Copy</b>
+        <button class="endpoint" data-copy="http://127.0.0.1:17321/anthropic" title="Copy Anthropic base URL">
+          <span>Anthropic</span><code>127.0.0.1:17321/anthropic</code><b data-i18n="copy">Copy</b>
         </button>
       </div>
     </section>
@@ -60,8 +60,11 @@
         <form id="rule-form">
           <input type="hidden" id="rule-id">
           <label class="rule-group-field"><span data-i18n="behaviorGroup">Behavior group</span><select id="rule-group"></select></label>
-          <div class="field-grid three">
+          <div class="field-grid two">
             <label><span data-i18n="name">Name</span><input id="name" required maxlength="120" data-i18n-placeholder="namePlaceholder" placeholder="Weather reply"></label>
+            <label><span data-i18n="ruleModels">Models</span><input id="model-pattern" data-i18n-placeholder="modelPatternPlaceholder" placeholder="* or gpt-*, deepseek-chat"></label>
+          </div>
+          <div class="field-grid two">
             <label><span data-i18n="scope">Scope</span><select id="scope"><option value="*" data-i18n="allEndpoints">All endpoints</option><option value="chat">OpenAI Chat</option><option value="completions">OpenAI Completions</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
             <label><span data-i18n="priority">Priority</span><input id="priority" type="number" value="100" min="1" max="9999"></label>
           </div>
@@ -128,7 +131,7 @@
             </div>
           </section>
           <section class="settings-section">
-            <div class="settings-section-title"><strong data-i18n="mockApiKey">Mock API key</strong><small data-i18n="mockApiKeyHelp">Optional. Clients must send this value to call /v1 endpoints. It is shown here because LMMock only returns mock data.</small></div>
+            <div class="settings-section-title"><strong data-i18n="mockApiKey">Mock API key</strong><small data-i18n="mockApiKeyHelp">Optional. Clients must send this value to call model endpoints. It is shown here because LMMock only returns mock data.</small></div>
             <label><span data-i18n="apiKey">API key</span><input id="mock-api-key" type="text" autocomplete="off" data-i18n-placeholder="apiKeyPlaceholder" placeholder="Leave blank to allow requests without a key"></label>
           </section>
           <button type="submit" class="button secondary" data-i18n="saveSettings">Save settings</button>

@@ -33,10 +33,12 @@ async def test_health_ui_and_default_chat(app):
         assert 'id="playground-output"' in ui.text
         assert 'id="group-select"' in ui.text
         assert 'id="models"' in ui.text
+        assert 'id="model-pattern"' in ui.text
         assert "OpenAI Completions" in ui.text
         assert logo.status_code == 200
         assert "image/svg+xml" in logo.headers["content-type"]
-        response = await client.post("/v1/chat/completions", json={"model": "mock-model", "messages": [{"role": "user", "content": "hello"}]})
+        response = await client.post("/openai/v1/chat/completions", json={"model": "mock-model", "messages": [{"role": "user", "content": "hello"}]})
+        assert (await client.get("/v1/models")).status_code == 404
     assert response.status_code == 200
     assert response.json()["choices"][0]["message"]["content"] == "LMMock is running."
 
@@ -54,9 +56,9 @@ async def test_rule_matches_and_templates_across_protocols(app):
             "reply": {"content": "${city} is sunny."},
         })
         assert created.status_code == 201
-        chat = await client.post("/v1/chat/completions", json={"model": "mock-model", "messages": [{"role": "user", "content": "weather in Shanghai"}]})
-        responses = await client.post("/v1/responses", json={"model": "mock-model", "input": "weather in Shanghai"})
-        anthropic = await client.post("/v1/messages", headers={"anthropic-version": "2023-06-01"}, json={"model": "mock-model", "max_tokens": 30, "messages": [{"role": "user", "content": "weather in Shanghai"}]})
+        chat = await client.post("/openai/v1/chat/completions", json={"model": "mock-model", "messages": [{"role": "user", "content": "weather in Shanghai"}]})
+        responses = await client.post("/openai/v1/responses", json={"model": "mock-model", "input": "weather in Shanghai"})
+        anthropic = await client.post("/anthropic/v1/messages", headers={"anthropic-version": "2023-06-01"}, json={"model": "mock-model", "max_tokens": 30, "messages": [{"role": "user", "content": "weather in Shanghai"}]})
     assert chat.json()["choices"][0]["message"]["content"] == "Shanghai is sunny."
     assert responses.json()["output_text"] == "Shanghai is sunny."
     assert anthropic.json()["content"][0]["text"] == "Shanghai is sunny."
@@ -67,22 +69,22 @@ async def test_rule_matches_and_templates_across_protocols(app):
     ("path", "body", "extract"),
     [
         (
-            "/v1/chat/completions",
+            "/openai/v1/chat/completions",
             {"model": "mock-model", "messages": [{"role": "user", "content": "你吃饭了吗？"}]},
             lambda data: data["choices"][0]["message"]["content"],
         ),
         (
-            "/v1/completions",
+            "/openai/v1/completions",
             {"model": "mock-model", "prompt": "你吃饭了吗?"},
             lambda data: data["choices"][0]["text"],
         ),
         (
-            "/v1/responses",
+            "/openai/v1/responses",
             {"model": "mock-model", "input": "你吃饭了吗"},
             lambda data: data["output_text"],
         ),
         (
-            "/v1/messages",
+            "/anthropic/v1/messages",
             {"model": "mock-model", "max_tokens": 32, "messages": [{"role": "user", "content": "你吃饭了呢？"}]},
             lambda data: data["content"][0]["text"],
         ),
@@ -98,7 +100,7 @@ async def test_default_fool_ai_rule_across_protocols(app, path, body, extract):
 @pytest.mark.asyncio
 async def test_default_fool_ai_rule_does_not_match_statements(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/v1/chat/completions", json={
+        response = await client.post("/openai/v1/chat/completions", json={
             "model": "mock-model",
             "messages": [{"role": "user", "content": "你吃饭了。"}],
         })
@@ -119,19 +121,19 @@ async def test_tool_and_stream_shapes(app):
             "reply_type": "tool",
             "reply": {"tool_name": "get_weather", "arguments": {"city": "Shanghai"}},
         })
-        chat = await client.post("/v1/chat/completions", json={"model": "mock-model", "stream": True, "messages": [{"role": "user", "content": "use tool"}]})
-        responses = await client.post("/v1/responses", json={"model": "mock-model", "stream": True, "input": "use tool"})
-        anthropic = await client.post("/v1/messages", json={"model": "mock-model", "stream": True, "max_tokens": 30, "messages": [{"role": "user", "content": "use tool"}]})
+        chat = await client.post("/openai/v1/chat/completions", json={"model": "mock-model", "stream": True, "messages": [{"role": "user", "content": "use tool"}]})
+        responses = await client.post("/openai/v1/responses", json={"model": "mock-model", "stream": True, "input": "use tool"})
+        anthropic = await client.post("/anthropic/v1/messages", json={"model": "mock-model", "stream": True, "max_tokens": 30, "messages": [{"role": "user", "content": "use tool"}]})
     assert "[DONE]" in chat.text
     assert "response.function_call_arguments.delta" in responses.text
     assert "message_start" in anthropic.text and "input_json_delta" in anthropic.text
 
 
 @pytest.mark.asyncio
-async def test_models_dispatch_by_anthropic_header(app):
+async def test_provider_model_routes_have_distinct_shapes(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-        openai = await client.get("/v1/models")
-        anthropic = await client.get("/v1/models", headers={"anthropic-version": "2023-06-01"})
+        openai = await client.get("/openai/v1/models")
+        anthropic = await client.get("/anthropic/v1/models")
     assert openai.json()["object"] == "list"
     assert anthropic.json()["data"][0]["type"] == "model"
 
@@ -153,7 +155,7 @@ async def test_no_matching_rule_returns_mock_fallback(app):
         for rule in rules:
             rule["enabled"] = False
             await client.put(f"/__lmmock/api/rules/{rule['id']}", json=rule)
-        response = await client.post("/v1/messages", json={
+        response = await client.post("/anthropic/v1/messages", json={
             "model": "mock-model",
             "max_tokens": 32,
             "messages": [{"role": "user", "content": "hello"}],
@@ -169,7 +171,7 @@ async def test_recent_requests_include_openable_request_and_response(app):
         "messages": [{"role": "user", "content": "inspect me"}],
     }
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/v1/chat/completions", json=request_body)
+        response = await client.post("/openai/v1/chat/completions", json=request_body)
         requests = (await client.get("/__lmmock/api/requests")).json()
     assert response.status_code == 200
     assert requests[0]["request"] == request_body
@@ -184,16 +186,50 @@ async def test_models_completions_and_interface_switches(app):
             "default_model": "demo-two",
             "enabled_operations": ["completions", "messages"],
         })
-        models = await client.get("/v1/models")
-        completion = await client.post("/v1/completions", json={"prompt": "hello"})
-        disabled = await client.post("/v1/responses", json={"model": "demo-two", "input": "hello"})
-        unknown = await client.post("/v1/completions", json={"model": "missing", "prompt": "hello"})
+        models = await client.get("/openai/v1/models")
+        completion = await client.post("/openai/v1/completions", json={"prompt": "hello"})
+        disabled = await client.post("/openai/v1/responses", json={"model": "demo-two", "input": "hello"})
+        unknown = await client.post("/openai/v1/completions", json={"model": "missing", "prompt": "hello"})
     assert saved.status_code == 200
     assert [item["id"] for item in models.json()["data"]] == ["demo-one", "demo-two"]
     assert completion.json()["model"] == "demo-two"
     assert completion.json()["choices"][0]["text"] == "LMMock is running."
     assert disabled.status_code == 404
     assert unknown.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_multiple_backends_keep_original_model_names_and_select_model_rules(app):
+    models = ["deepseek-chat", "gpt-4o", "claude-3-7-sonnet", "glm-4-plus"]
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        await client.put("/__lmmock/api/settings", json={"models": models, "default_model": "gpt-4o"})
+        for priority, model in enumerate(models, 1):
+            created = await client.post("/__lmmock/api/rules", json={
+                "name": f"{model} reply",
+                "priority": priority,
+                "model_pattern": "gpt-*" if model == "gpt-4o" else model,
+                "scopes": ["*"],
+                "match_type": "all",
+                "reply_type": "text",
+                "reply": {"content": f"mocked by {model}"},
+            })
+            assert created.status_code == 201
+
+        replies = {}
+        for model in ("deepseek-chat", "gpt-4o", "glm-4-plus"):
+            response = await client.post("/openai/v1/chat/completions", json={
+                "model": model,
+                "messages": [{"role": "user", "content": "same prompt"}],
+            })
+            replies[model] = response.json()["choices"][0]["message"]["content"]
+        claude = await client.post("/anthropic/v1/messages", json={
+            "model": "claude-3-7-sonnet",
+            "max_tokens": 32,
+            "messages": [{"role": "user", "content": "same prompt"}],
+        })
+        replies["claude-3-7-sonnet"] = claude.json()["content"][0]["text"]
+
+    assert replies == {model: f"mocked by {model}" for model in models}
 
 
 @pytest.mark.asyncio
@@ -209,8 +245,8 @@ async def test_behavior_groups_isolate_rules(app):
             "reply_type": "text",
             "reply": {"content": "Selected failure group."},
         })
-        normal = await client.post("/v1/chat/completions", json={"model": "mock-model", "messages": [{"role": "user", "content": "hello"}]})
-        selected = await client.post("/v1/chat/completions", headers={"x-lmmock-group": "Failures"}, json={"model": "mock-model", "messages": [{"role": "user", "content": "hello"}]})
+        normal = await client.post("/openai/v1/chat/completions", json={"model": "mock-model", "messages": [{"role": "user", "content": "hello"}]})
+        selected = await client.post("/openai/v1/chat/completions", headers={"x-lmmock-group": "Failures"}, json={"model": "mock-model", "messages": [{"role": "user", "content": "hello"}]})
     assert created.status_code == 201
     assert normal.json()["choices"][0]["message"]["content"] == "LMMock is running."
     assert selected.json()["choices"][0]["message"]["content"] == "Selected failure group."
@@ -224,18 +260,18 @@ async def test_api_key_protects_only_model_apis(tmp_path):
         assert configured.status_code == 200
         assert (await client.get("/")).status_code == 200
         assert (await client.get("/healthz")).status_code == 200
-        assert (await client.get("/v1/models")).status_code == 401
-        assert (await client.get("/v1/models", headers={"authorization": "Bearer wrong"})).status_code == 401
-        assert (await client.get("/v1/models", headers={"x-api-key": "wrong"})).status_code == 401
+        assert (await client.get("/openai/v1/models")).status_code == 401
+        assert (await client.get("/openai/v1/models", headers={"authorization": "Bearer wrong"})).status_code == 401
+        assert (await client.get("/anthropic/v1/models", headers={"x-api-key": "wrong"})).status_code == 401
         settings = await client.get("/__lmmock/api/settings")
         assert settings.status_code == 200
-        bearer = await client.get("/v1/models", headers={"authorization": "Bearer secret-key"})
-        api_key = await client.post("/v1/messages", headers={"x-api-key": "secret-key"}, json={
+        bearer = await client.get("/openai/v1/models", headers={"authorization": "Bearer secret-key"})
+        api_key = await client.post("/anthropic/v1/messages", headers={"x-api-key": "secret-key"}, json={
             "model": "mock-model",
             "max_tokens": 10,
             "messages": [{"role": "user", "content": "hello"}],
         })
-        tokens = await client.post("/v1/messages/count_tokens", headers={"x-api-key": "secret-key"}, json={
+        tokens = await client.post("/anthropic/v1/messages/count_tokens", headers={"x-api-key": "secret-key"}, json={
             "model": "mock-model",
             "messages": [{"role": "user", "content": "hello"}],
         })

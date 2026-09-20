@@ -202,7 +202,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     @app.middleware("http")
     async def authenticate(request: Request, call_next: Any) -> Response:
         required_key = str(store.get_settings().get("api_key", ""))
-        protected = request.url.path.startswith("/v1/")
+        protected = request.url.path.startswith(("/openai/v1/", "/anthropic/v1/"))
         if required_key and protected:
             authorization = request.headers.get("authorization", "")
             bearer = authorization[7:] if authorization.lower().startswith("bearer ") else ""
@@ -298,23 +298,23 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             return StreamingResponse(_anthropic_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "request-id": request_id})
         return JSONResponse(payload, headers={"request-id": request_id})
 
-    @app.post("/v1/chat/completions")
+    @app.post("/openai/v1/chat/completions")
     async def chat(request: Request) -> Response:
         return await handle("openai", "chat", request)
 
-    @app.post("/v1/responses")
+    @app.post("/openai/v1/responses")
     async def responses(request: Request) -> Response:
         return await handle("openai", "responses", request)
 
-    @app.post("/v1/completions")
+    @app.post("/openai/v1/completions")
     async def completions(request: Request) -> Response:
         return await handle("openai", "completions", request)
 
-    @app.post("/v1/messages")
+    @app.post("/anthropic/v1/messages")
     async def messages(request: Request) -> Response:
         return await handle("anthropic", "messages", request)
 
-    @app.post("/v1/messages/count_tokens")
+    @app.post("/anthropic/v1/messages/count_tokens")
     async def count_message_tokens(request: Request) -> Response:
         try:
             body = await request.json()
@@ -329,12 +329,15 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         semantic = request_from("anthropic", "messages", body)
         return JSONResponse({"input_tokens": max(1, len(semantic.text) // 4)})
 
-    @app.get("/v1/models")
-    async def models(request: Request) -> dict[str, Any]:
+    @app.get("/openai/v1/models")
+    async def openai_models() -> dict[str, Any]:
         models = store.get_settings()["models"]
-        if request.headers.get("anthropic-version"):
-            return {"data": [{"type": "model", "id": model, "display_name": model, "created_at": "2025-01-01T00:00:00Z"} for model in models], "has_more": False, "first_id": models[0], "last_id": models[-1]}
         return {"object": "list", "data": [{"id": model, "object": "model", "created": int(time.time()), "owned_by": "lmmock"} for model in models]}
+
+    @app.get("/anthropic/v1/models")
+    async def anthropic_models() -> dict[str, Any]:
+        models = store.get_settings()["models"]
+        return {"data": [{"type": "model", "id": model, "display_name": model, "created_at": "2025-01-01T00:00:00Z"} for model in models], "has_more": False, "first_id": models[0], "last_id": models[-1]}
 
     @app.get("/__lmmock/api/info")
     async def info() -> dict[str, Any]:

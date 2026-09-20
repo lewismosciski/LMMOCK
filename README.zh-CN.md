@@ -43,7 +43,7 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 - **模型**：应用可以请求的模型名称，可以添加 `gpt-5-mock`、`claude-mock` 等自定义名称并选择默认模型。
 - **接口**：可以在配置中分别启用或关闭。
 - **行为组**：隔离不同规则集合，例如 `happy-path`、`tool-calls`、`failures`。
-- **规则**：归属于一个行为组，可以匹配全部请求、包含文本或正则表达式。
+- **规则**：归属于一个行为组，可以限定精确模型名或 `gpt-*` 这样的通配模式，并匹配全部请求、包含文本或正则表达式。
 
 请求默认使用网页中激活的行为组。也可以通过 `x-lmmock-group: happy-path` 或 `x-lmmock-group: 2` 为单次请求指定行为组。
 
@@ -53,18 +53,18 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 
 | Provider | Endpoint | JSON | 流式响应 | 工具调用 |
 | --- | --- | :---: | :---: | :---: |
-| OpenAI | `POST /v1/completions` | ✓ | ✓ | — |
-| OpenAI | `POST /v1/chat/completions` | ✓ | ✓ | ✓ |
-| OpenAI | `POST /v1/responses` | ✓ | ✓ | ✓ |
-| OpenAI | `GET /v1/models` | ✓ | — | — |
-| Anthropic | `POST /v1/messages` | ✓ | ✓ | ✓ |
-| Anthropic | `POST /v1/messages/count_tokens` | ✓ | — | — |
-| Anthropic | `GET /v1/models` | ✓ | — | — |
+| OpenAI 兼容 | `POST /openai/v1/completions` | ✓ | ✓ | — |
+| OpenAI 兼容 | `POST /openai/v1/chat/completions` | ✓ | ✓ | ✓ |
+| OpenAI 兼容 | `POST /openai/v1/responses` | ✓ | ✓ | ✓ |
+| OpenAI 兼容 | `GET /openai/v1/models` | ✓ | — | — |
+| Anthropic | `POST /anthropic/v1/messages` | ✓ | ✓ | ✓ |
+| Anthropic | `POST /anthropic/v1/messages/count_tokens` | ✓ | — | — |
+| Anthropic | `GET /anthropic/v1/models` | ✓ | — | — |
 
 查看全部已配置模型：
 
 ```bash
-curl http://127.0.0.1:17321/v1/models
+curl http://127.0.0.1:17321/openai/v1/models
 ```
 
 ## SDK 示例
@@ -72,7 +72,7 @@ curl http://127.0.0.1:17321/v1/models
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://127.0.0.1:17321/v1", api_key="mock")
+client = OpenAI(base_url="http://127.0.0.1:17321/openai/v1", api_key="mock")
 
 client.completions.create(model="mock-model", prompt="hello")
 client.chat.completions.create(
@@ -86,7 +86,7 @@ client.models.list()
 ```python
 from anthropic import Anthropic
 
-client = Anthropic(base_url="http://127.0.0.1:17321", api_key="mock")
+client = Anthropic(base_url="http://127.0.0.1:17321/anthropic", api_key="mock")
 client.messages.create(
     model="mock-model",
     max_tokens=128,
@@ -102,7 +102,7 @@ LMMock 提供 Anthropic Messages 和 Models 兼容接口。先在网页 Configur
 ```bash
 python3 run.py
 
-export ANTHROPIC_BASE_URL="http://127.0.0.1:17321"
+export ANTHROPIC_BASE_URL="http://127.0.0.1:17321/anthropic"
 export ANTHROPIC_AUTH_TOKEN="local-test-key"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
 claude
@@ -120,7 +120,7 @@ model_provider = "lmmock"
 
 [model_providers.lmmock]
 name = "LMMock"
-base_url = "http://127.0.0.1:17321/v1"
+base_url = "http://127.0.0.1:17321/openai/v1"
 env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```
@@ -134,6 +134,15 @@ codex
 ```
 
 Codex 的 Provider 设置必须放在用户级配置中，而不是项目本地配置。可参考 OpenAI 官方的[自定义模型 Provider](https://developers.openai.com/es-419/docs/config-file/config-advanced#proveedores-de-modelos-personalizados)与[配置参考](https://developers.openai.com/es-419/docs/config-file/config-reference)。
+
+## Mock 多个模型后端
+
+对于已有的多 Agent 应用，保留全部原始模型名，只修改 Base URL：
+
+- OpenAI、DeepSeek、GLM 以及其他 OpenAI 兼容客户端：`http://127.0.0.1:17321/openai/v1`
+- Claude 或 Anthropic 客户端：`http://127.0.0.1:17321/anthropic`
+
+在 Configuration 中加入应用现有的全部模型名，例如 `gpt-4o`、`deepseek-chat`、`claude-3-7-sonnet` 和 `glm-4-plus`。然后在每条规则的“适用模型”中填写精确名称，或填写 `gpt-*, o3-*` 这样的逗号分隔通配模式。如果应用中的不同后端已经填写了不同的占位 Key，可以将 Mock API Key 留空，此时 LMMock 不校验这些 Key。
 
 ## 网络访问与 API Key
 

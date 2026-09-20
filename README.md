@@ -43,7 +43,7 @@ Open [http://127.0.0.1:17321](http://127.0.0.1:17321). Standalone Linux, macOS, 
 - **Models** are the names your application is allowed to request. Add real-looking names such as `gpt-5-mock` or `claude-mock` and choose a default.
 - **Interfaces** can be enabled independently in Configuration.
 - **Behavior groups** isolate sets of rules, such as `happy-path`, `tool-calls`, and `failures`.
-- **Rules** belong to one group and match every request, contained text, or a regular expression.
+- **Rules** belong to one group, can target exact model names or glob patterns such as `gpt-*`, and match every request, contained text, or a regular expression.
 
 The active group is used by default. Select another group per request with `x-lmmock-group: happy-path` or `x-lmmock-group: 2`.
 
@@ -53,18 +53,18 @@ New workspaces include an editable `foolAI` example. A Chinese question such as 
 
 | Provider | Endpoint | JSON | Streaming | Tool calls |
 | --- | --- | :---: | :---: | :---: |
-| OpenAI | `POST /v1/completions` | ✓ | ✓ | — |
-| OpenAI | `POST /v1/chat/completions` | ✓ | ✓ | ✓ |
-| OpenAI | `POST /v1/responses` | ✓ | ✓ | ✓ |
-| OpenAI | `GET /v1/models` | ✓ | — | — |
-| Anthropic | `POST /v1/messages` | ✓ | ✓ | ✓ |
-| Anthropic | `POST /v1/messages/count_tokens` | ✓ | — | — |
-| Anthropic | `GET /v1/models` | ✓ | — | — |
+| OpenAI-compatible | `POST /openai/v1/completions` | ✓ | ✓ | — |
+| OpenAI-compatible | `POST /openai/v1/chat/completions` | ✓ | ✓ | ✓ |
+| OpenAI-compatible | `POST /openai/v1/responses` | ✓ | ✓ | ✓ |
+| OpenAI-compatible | `GET /openai/v1/models` | ✓ | — | — |
+| Anthropic | `POST /anthropic/v1/messages` | ✓ | ✓ | ✓ |
+| Anthropic | `POST /anthropic/v1/messages/count_tokens` | ✓ | — | — |
+| Anthropic | `GET /anthropic/v1/models` | ✓ | — | — |
 
 List every configured model:
 
 ```bash
-curl http://127.0.0.1:17321/v1/models
+curl http://127.0.0.1:17321/openai/v1/models
 ```
 
 ## SDK examples
@@ -72,7 +72,7 @@ curl http://127.0.0.1:17321/v1/models
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://127.0.0.1:17321/v1", api_key="mock")
+client = OpenAI(base_url="http://127.0.0.1:17321/openai/v1", api_key="mock")
 
 client.completions.create(model="mock-model", prompt="hello")
 client.chat.completions.create(
@@ -86,7 +86,7 @@ client.models.list()
 ```python
 from anthropic import Anthropic
 
-client = Anthropic(base_url="http://127.0.0.1:17321", api_key="mock")
+client = Anthropic(base_url="http://127.0.0.1:17321/anthropic", api_key="mock")
 client.messages.create(
     model="mock-model",
     max_tokens=128,
@@ -102,7 +102,7 @@ LMMock exposes Anthropic-format Messages and Models APIs. Set the optional Mock 
 ```bash
 python3 run.py
 
-export ANTHROPIC_BASE_URL="http://127.0.0.1:17321"
+export ANTHROPIC_BASE_URL="http://127.0.0.1:17321/anthropic"
 export ANTHROPIC_AUTH_TOKEN="local-test-key"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
 claude
@@ -120,7 +120,7 @@ model_provider = "lmmock"
 
 [model_providers.lmmock]
 name = "LMMock"
-base_url = "http://127.0.0.1:17321/v1"
+base_url = "http://127.0.0.1:17321/openai/v1"
 env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```
@@ -134,6 +134,15 @@ codex
 ```
 
 Codex provider settings belong in the user configuration, not a project-local file. See the official OpenAI documentation for [custom model providers](https://developers.openai.com/es-419/docs/config-file/config-advanced#proveedores-de-modelos-personalizados) and the [configuration reference](https://developers.openai.com/es-419/docs/config-file/config-reference).
+
+## Mock multiple model backends
+
+For an existing multi-agent application, keep every original model name and change only its base URL:
+
+- OpenAI, DeepSeek, GLM, and other OpenAI-compatible clients: `http://127.0.0.1:17321/openai/v1`
+- Claude or Anthropic clients: `http://127.0.0.1:17321/anthropic`
+
+Add all existing names—such as `gpt-4o`, `deepseek-chat`, `claude-3-7-sonnet`, and `glm-4-plus`—to Configuration. Then set each rule's Models field to an exact name or a comma-separated glob list such as `gpt-*, o3-*`. Leave the Mock API key blank if the application already sends different placeholder keys; LMMock will accept them without validation.
 
 ## Network access and API keys
 

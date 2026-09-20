@@ -47,8 +47,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_open_browser and not no_browser():
         threading.Thread(target=_open_browser, args=(address,), daemon=True).start()
     print(f"LMMock listening at {address}")
-    print(f"OpenAI base URL: {address}/v1")
-    print(f"Anthropic base URL: {address}")
+    print(f"OpenAI-compatible base URL: {address}/openai/v1")
+    print(f"Anthropic base URL: {address}/anthropic")
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
         print("Warning: LMMock is listening beyond localhost. Configure the optional Mock API key in the web UI.")
     uvicorn.run(create_app(Path(args.data_dir)), host=args.host, port=args.port, log_level="info")
