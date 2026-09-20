@@ -112,11 +112,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download standalone archives
+        uses: actions/download-artifact@v4
         with:
-          pattern: "*"
+          pattern: "binary-*"
           path: release-assets
           merge-multiple: true
+      - name: Download Python distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: release-assets
       - name: Write checksums
         working-directory: release-assets
         run: sha256sum * > SHA256SUMS.txt
