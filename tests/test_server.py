@@ -21,6 +21,11 @@ async def test_health_ui_and_default_chat(app):
         logo = await client.get("/static/logo.svg")
         assert "Shape the model response" in ui.text
         assert "Recent requests" in ui.text
+        assert "Keep your app real" not in ui.text
+        assert "MOCK-FIRST" not in ui.text
+        assert 'id="language-toggle"' in ui.text
+        assert 'id="openai-forward"' in ui.text
+        assert 'id="request-dialog"' in ui.text
         assert logo.status_code == 200
         assert "image/svg+xml" in logo.headers["content-type"]
         response = await client.post("/v1/chat/completions", json={"model": "mock-model", "messages": [{"role": "user", "content": "hello"}]})
@@ -82,20 +87,21 @@ async def test_models_dispatch_by_anthropic_header(app):
 async def test_provider_settings_are_persisted_without_keys(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         saved = await client.put("/__lmmock/api/settings", json={
-            "mode_openai": "proxy-only",
+            "forward_openai": True,
             "openai_base_url": "https://api.openai.com",
         })
         settings = await client.get("/__lmmock/api/settings")
-        invalid = await client.put("/__lmmock/api/settings", json={"mode_openai": "unsafe"})
+        invalid = await client.put("/__lmmock/api/settings", json={"forward_openai": "yes"})
     assert saved.status_code == 200
-    assert settings.json()["mode_openai"] == "proxy-only"
+    assert settings.json()["forward_openai"] is True
+    assert "mode_openai" not in settings.json()
     assert settings.json()["openai_base_url"] == "https://api.openai.com"
     assert "api_key" not in settings.json()
     assert invalid.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_mock_then_proxy_does_not_call_upstream_when_a_rule_matches(app, monkeypatch):
+async def test_forwarding_does_not_call_upstream_when_a_rule_matches(app, monkeypatch):
     called = False
 
     async def fake_proxy(*args, **kwargs):
@@ -106,7 +112,7 @@ async def test_mock_then_proxy_does_not_call_upstream_when_a_rule_matches(app, m
     monkeypatch.setattr(app_module, "_proxy", fake_proxy)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         await client.put("/__lmmock/api/settings", json={
-            "mode_openai": "mock-then-proxy",
+            "forward_openai": True,
             "openai_base_url": "https://api.openai.com",
         })
         response = await client.post("/v1/chat/completions", json={
@@ -119,9 +125,13 @@ async def test_mock_then_proxy_does_not_call_upstream_when_a_rule_matches(app, m
 
 
 @pytest.mark.asyncio
-async def test_proxy_only_requires_a_base_url(app):
+async def test_forwarding_requires_a_base_url_when_no_rule_matches(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-        await client.put("/__lmmock/api/settings", json={"mode_anthropic": "proxy-only"})
+        rules = (await client.get("/__lmmock/api/rules")).json()
+        default_rule = rules[0]
+        default_rule["enabled"] = False
+        await client.put(f"/__lmmock/api/rules/{default_rule['id']}", json=default_rule)
+        await client.put("/__lmmock/api/settings", json={"forward_anthropic": True})
         response = await client.post("/v1/messages", json={
             "model": "mock-model",
             "max_tokens": 32,
@@ -129,3 +139,17 @@ async def test_proxy_only_requires_a_base_url(app):
         })
     assert response.status_code == 502
     assert response.json()["error"]["type"] == "upstream_error"
+
+
+@pytest.mark.asyncio
+async def test_recent_requests_include_openable_request_and_response(app):
+    request_body = {
+        "model": "mock-model",
+        "messages": [{"role": "user", "content": "inspect me"}],
+    }
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/v1/chat/completions", json=request_body)
+        requests = (await client.get("/__lmmock/api/requests")).json()
+    assert response.status_code == 200
+    assert requests[0]["request"] == request_body
+    assert requests[0]["response"]["choices"][0]["message"]["content"] == "LMMock is running."

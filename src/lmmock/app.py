@@ -42,11 +42,22 @@ def _usage(text: str) -> dict[str, int]:
     return {"input_tokens": max(1, len(text) // 4), "output_tokens": output, "total_tokens": output + max(1, len(text) // 4)}
 
 
-def _error(provider: str, reply: SemanticReply, request_id: str) -> JSONResponse:
+def _error_payload(provider: str, reply: SemanticReply) -> dict[str, Any]:
     if provider == "anthropic":
-        payload = {"type": "error", "error": {"type": reply.error_type, "message": reply.text}}
-        return JSONResponse(payload, status_code=reply.status_code, headers={"request-id": request_id})
-    return JSONResponse({"error": {"message": reply.text, "type": reply.error_type, "param": None, "code": None}}, status_code=reply.status_code, headers={"x-request-id": request_id})
+        return {"type": "error", "error": {"type": reply.error_type, "message": reply.text}}
+    return {"error": {"message": reply.text, "type": reply.error_type, "param": None, "code": None}}
+
+
+def _error(provider: str, reply: SemanticReply, request_id: str) -> JSONResponse:
+    header = "request-id" if provider == "anthropic" else "x-request-id"
+    return JSONResponse(_error_payload(provider, reply), status_code=reply.status_code, headers={header: request_id})
+
+
+def _snapshot(value: Any, limit: int = 20_000) -> Any:
+    rendered = json.dumps(value, ensure_ascii=False, default=str)
+    if len(rendered) <= limit:
+        return value
+    return {"truncated": True, "preview": rendered[:limit]}
 
 
 def _chat_payload(request: SemanticRequest, reply: SemanticReply, response_id: str) -> dict[str, Any]:
@@ -166,9 +177,6 @@ async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, resp
 
 async def _proxy(request: Request, provider: str, endpoint: str, body: bytes, stream: bool, store: Store) -> Response | None:
     settings = store.get_settings()
-    mode = settings.get("mode_openai" if provider == "openai" else "mode_anthropic", "mock-only")
-    if mode == "mock-only":
-        return None
     base = settings.get("openai_base_url" if provider == "openai" else "anthropic_base_url") or os.getenv(f"LMMOCK_{provider.upper()}_BASE_URL", "")
     api_key = os.getenv(f"LMMOCK_{provider.upper()}_API_KEY", "")
     if not base:
@@ -232,9 +240,23 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         if not isinstance(body, dict):
             return JSONResponse({"error": {"message": "Request body must be an object", "type": "invalid_request_error"}}, status_code=400)
         settings = store.get_settings()
-        mode = settings.get("mode_openai" if provider == "openai" else "mode_anthropic", "mock-only")
+        forwarding = bool(settings.get("forward_openai" if provider == "openai" else "forward_anthropic", False))
         semantic = request_from(provider, operation, body)
         started = time.perf_counter()
+
+        def record(request_id: str, rule_name: str | None, status: int, response_body: Any) -> None:
+            state.requests.appendleft({
+                "id": request_id,
+                "provider": provider,
+                "operation": operation,
+                "model": semantic.model,
+                "rule": rule_name,
+                "status": status,
+                "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                "input": semantic.text[-240:],
+                "request": _snapshot(body),
+                "response": _snapshot(response_body),
+            })
 
         async def forward() -> Response:
             request_id = _id("req")
@@ -247,38 +269,53 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
                 message = "Proxy mode requires a provider base URL."
             if proxied is None:
                 error = SemanticReply("error", text=message, status_code=502, error_type="upstream_error")
-                state.requests.appendleft({"id": request_id, "provider": provider, "operation": operation, "model": semantic.model, "rule": "upstream", "status": 502, "duration_ms": round((time.perf_counter() - started) * 1000, 2), "input": semantic.text[-240:]})
+                record(request_id, "upstream", 502, _error_payload(provider, error))
                 return _error(provider, error, request_id)
-            state.requests.appendleft({"id": request_id, "provider": provider, "operation": operation, "model": semantic.model, "rule": "upstream", "status": proxied.status_code, "duration_ms": round((time.perf_counter() - started) * 1000, 2), "input": semantic.text[-240:]})
+            if semantic.stream:
+                response_body: Any = {
+                    "forwarded": True,
+                    "status": proxied.status_code,
+                    "note": "Streaming response bodies are not retained.",
+                }
+            else:
+                content = getattr(proxied, "body", b"")
+                try:
+                    response_body = json.loads(content)
+                except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+                    response_body = {"forwarded": True, "status": proxied.status_code, "body": bytes(content).decode("utf-8", errors="replace")}
+            record(request_id, "upstream", proxied.status_code, response_body)
             return proxied
 
-        if mode == "proxy-only":
-            return await forward()
-
         rule, reply = resolve(store.list_rules(), semantic)
-        if reply is None and mode == "mock-then-proxy":
+        if reply is None and forwarding:
             return await forward()
         if reply is None:
             reply = SemanticReply("text", text="No rule matched.")
         if rule and rule.get("delay_ms"):
             await asyncio.sleep(rule["delay_ms"] / 1000)
         request_id = _id("req")
-        state.requests.appendleft({"id": request_id, "provider": provider, "operation": operation, "model": semantic.model, "rule": rule["name"] if rule else None, "status": reply.status_code, "duration_ms": round((time.perf_counter() - started) * 1000, 2), "input": semantic.text[-240:]})
         if reply.kind == "error":
+            record(request_id, rule["name"] if rule else None, reply.status_code, _error_payload(provider, reply))
             return _error(provider, reply, request_id)
         response_id = _id("chatcmpl" if operation == "chat" else "resp" if operation == "responses" else "msg")
         if operation == "chat":
+            payload = _chat_payload(semantic, reply, response_id)
+            record(request_id, rule["name"] if rule else None, reply.status_code, payload)
             if semantic.stream:
                 include_usage = bool((body.get("stream_options") or {}).get("include_usage"))
                 return StreamingResponse(_chat_stream(semantic, reply, response_id, include_usage), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
-            return JSONResponse(_chat_payload(semantic, reply, response_id), headers={"x-request-id": request_id})
+            return JSONResponse(payload, headers={"x-request-id": request_id})
         if operation == "responses":
+            payload = _responses_payload(semantic, reply, response_id)
+            record(request_id, rule["name"] if rule else None, reply.status_code, payload)
             if semantic.stream:
                 return StreamingResponse(_responses_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
-            return JSONResponse(_responses_payload(semantic, reply, response_id), headers={"x-request-id": request_id})
+            return JSONResponse(payload, headers={"x-request-id": request_id})
+        payload = _anthropic_payload(semantic, reply, response_id)
+        record(request_id, rule["name"] if rule else None, reply.status_code, payload)
         if semantic.stream:
             return StreamingResponse(_anthropic_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "request-id": request_id})
-        return JSONResponse(_anthropic_payload(semantic, reply, response_id), headers={"request-id": request_id})
+        return JSONResponse(payload, headers={"request-id": request_id})
 
     @app.post("/v1/chat/completions")
     async def chat(request: Request) -> Response:

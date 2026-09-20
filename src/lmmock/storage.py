@@ -137,25 +137,33 @@ class Store:
             rows = conn.execute("SELECT key, value FROM settings").fetchall()
         result: dict[str, Any] = {
             "model": "mock-model",
-            "mode_openai": "mock-only",
-            "mode_anthropic": "mock-only",
+            "forward_openai": False,
+            "forward_anthropic": False,
             "openai_base_url": "",
             "anthropic_base_url": "",
             "openai_api_key_configured": bool(os.getenv("LMMOCK_OPENAI_API_KEY")),
             "anthropic_api_key_configured": bool(os.getenv("LMMOCK_ANTHROPIC_API_KEY")),
         }
-        for row in rows:
-            result[row["key"]] = json.loads(row["value"])
+        saved = {row["key"]: json.loads(row["value"]) for row in rows}
+        for key in result:
+            if key in saved:
+                result[key] = saved[key]
+        # Migrate settings written by versions that exposed three proxy modes.
+        for provider in ("openai", "anthropic"):
+            forward_key = f"forward_{provider}"
+            mode_key = f"mode_{provider}"
+            if forward_key not in saved and mode_key in saved:
+                result[forward_key] = saved[mode_key] != "mock-only"
         return result
 
     def set_settings(self, values: dict[str, Any]) -> dict[str, Any]:
-        allowed = {"model", "mode_openai", "mode_anthropic", "openai_base_url", "anthropic_base_url"}
-        modes = {"mock-only", "mock-then-proxy", "proxy-only"}
+        allowed = {"model", "forward_openai", "forward_anthropic", "openai_base_url", "anthropic_base_url"}
         with self.lock, self._connect() as conn:
             for key, value in values.items():
                 if key in allowed:
-                    if key in {"mode_openai", "mode_anthropic"} and value not in modes:
-                        raise ValueError(f"{key} must be mock-only, mock-then-proxy, or proxy-only")
+                    if key in {"forward_openai", "forward_anthropic"}:
+                        if not isinstance(value, bool):
+                            raise ValueError(f"{key} must be true or false")
                     if key.endswith("base_url"):
                         value = str(value or "")[:500]
                     conn.execute("INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)", (key, json.dumps(value)))
