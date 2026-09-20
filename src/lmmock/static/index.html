@@ -3,75 +3,121 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LMMock</title>
+  <meta name="theme-color" content="#0b1220">
+  <title>LMMock · Local LLM mock server</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <p class="eyebrow">LOCAL LLM MOCK SERVER</p>
-      <h1>LMMock</h1>
-      <p class="tagline">Mock the model. Run the real app.</p>
-    </div>
-    <span id="status" class="status">connecting</span>
+    <a class="brand" href="/" aria-label="LMMock home">
+      <img src="/static/logo.svg" alt="" width="38" height="38">
+      <span><strong>LMMock</strong><small>local workspace</small></span>
+    </a>
+    <div id="status" class="status" role="status"><i></i><span>Connecting</span></div>
   </header>
 
-  <main class="layout">
-    <section class="card rules-card">
-      <div class="section-heading">
-        <div><h2>Rules</h2><p>First matching rule wins.</p></div>
-        <button id="new-rule" class="primary">New rule</button>
+  <div class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">MOCK-FIRST · LOCAL-ONLY</p>
+        <h1>Shape the model response.<br>Keep your app real.</h1>
+        <p class="hero-copy">Create deterministic replies for OpenAI and Anthropic clients, then test the same application code without a model call.</p>
       </div>
-      <div id="rules" class="rules"></div>
+      <div class="endpoint-list" aria-label="SDK base URLs">
+        <button class="endpoint" data-copy="http://127.0.0.1:8000/v1" title="Copy OpenAI base URL">
+          <span>OpenAI</span><code>127.0.0.1:8000/v1</code><b>Copy</b>
+        </button>
+        <button class="endpoint" data-copy="http://127.0.0.1:8000" title="Copy Anthropic base URL">
+          <span>Anthropic</span><code>127.0.0.1:8000</code><b>Copy</b>
+        </button>
+      </div>
     </section>
 
-    <section class="card editor-card">
-      <div class="section-heading"><div><h2 id="editor-title">New rule</h2><p>Keep the response small and explicit.</p></div></div>
-      <form id="rule-form">
-        <input type="hidden" id="rule-id">
-        <label>Name<input id="name" required maxlength="120" placeholder="Weather reply"></label>
-        <div class="row">
-          <label>Scope<select id="scope"><option value="*">All endpoints</option><option value="chat">OpenAI Chat</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
-          <label>Match<select id="match-type"><option value="all">Every request</option><option value="contains">Contains</option><option value="regex">Regex</option></select></label>
+    <main class="workspace">
+      <section class="panel rules-panel">
+        <div class="panel-heading">
+          <div><p class="kicker">01</p><h2>Rules</h2><p>Lowest priority number wins.</p></div>
+          <button id="new-rule" class="button primary">New rule</button>
         </div>
-        <label id="match-wrap">Text<input id="match-value" placeholder="weather"></label>
-        <label>Reply<select id="reply-type"><option value="text">Text</option><option value="json">JSON text</option><option value="tool">Tool call</option><option value="error">Error</option></select></label>
-        <label id="content-wrap">Content<textarea id="content" rows="5" placeholder="The weather is sunny."></textarea></label>
-        <div id="tool-wrap" class="hidden row">
-          <label>Tool name<input id="tool-name" placeholder="get_weather"></label>
-          <label>Arguments (JSON)<textarea id="arguments" rows="3">{"city":"Shanghai"}</textarea></label>
-        </div>
-        <div id="error-wrap" class="hidden row">
-          <label>Status<input id="error-status" type="number" value="500" min="400" max="599"></label>
-          <label>Error message<input id="error-message" value="Mock error"></label>
-        </div>
-        <div class="form-actions"><button type="submit" class="primary">Save rule</button><button type="button" id="delete-rule" class="danger hidden">Delete</button></div>
-      </form>
-    </section>
+        <div id="rules" class="rules" aria-live="polite"></div>
+      </section>
 
-    <section class="card playground-card">
-      <div class="section-heading"><div><h2>Playground</h2><p>Try a request without leaving the page.</p></div></div>
-      <div class="row"><label>Endpoint<select id="playground-endpoint"><option value="chat">OpenAI Chat</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label><label>Input<input id="playground-input" value="weather in Shanghai"></label></div>
-      <button id="playground-send" class="secondary">Send test request</button>
-      <pre id="playground-output" class="output">No request yet.</pre>
-    </section>
+      <section class="panel editor-panel">
+        <div class="panel-heading">
+          <div><p class="kicker">02</p><h2 id="editor-title">New rule</h2><p>Match a request and return a fixed result.</p></div>
+          <label class="switch"><input id="enabled" type="checkbox" checked><span></span>Enabled</label>
+        </div>
+        <form id="rule-form">
+          <input type="hidden" id="rule-id">
+          <div class="field-grid three">
+            <label>Name<input id="name" required maxlength="120" placeholder="Weather reply"></label>
+            <label>Scope<select id="scope"><option value="*">All endpoints</option><option value="chat">OpenAI Chat</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
+            <label>Priority<input id="priority" type="number" value="100" min="1" max="9999"></label>
+          </div>
+          <div class="field-grid two">
+            <label>Match<select id="match-type"><option value="all">Every request</option><option value="contains">Contains</option><option value="regex">Regex</option></select></label>
+            <label id="match-wrap">Text<input id="match-value" placeholder="weather in (?P&lt;city&gt;.+)"></label>
+          </div>
+          <div class="field-grid two">
+            <label>Reply<select id="reply-type"><option value="text">Text</option><option value="json">JSON text</option><option value="tool">Tool call</option><option value="error">HTTP error</option></select></label>
+            <label>Delay (ms)<input id="delay" type="number" value="0" min="0" max="30000"></label>
+          </div>
+          <label id="content-wrap">Content<textarea id="content" rows="6" placeholder="Weather in ${city}: sunny."></textarea><small>Regex captures are available as <code>${city}</code> or <code>${1}</code>.</small></label>
+          <div id="tool-wrap" class="hidden field-grid two">
+            <label>Tool name<input id="tool-name" placeholder="get_weather"></label>
+            <label>Arguments (JSON)<textarea id="arguments" rows="4">{"city":"Shanghai"}</textarea></label>
+          </div>
+          <div id="error-wrap" class="hidden field-grid two">
+            <label>Status<input id="error-status" type="number" value="500" min="400" max="599"></label>
+            <label>Error message<input id="error-message" value="Mock error"></label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="button primary">Save rule</button>
+            <button type="button" id="delete-rule" class="button danger hidden">Delete</button>
+          </div>
+        </form>
+      </section>
 
-    <section class="card settings-card">
-      <div class="section-heading"><div><h2>Provider settings</h2><p>Mock first. Forward only when you choose it.</p></div></div>
-      <form id="settings-form">
-        <div class="row">
-          <label>OpenAI mode<select id="openai-mode"><option value="mock-only">Mock only</option><option value="mock-then-proxy">Mock, then proxy</option><option value="proxy-only">Proxy only</option></select></label>
-          <label>OpenAI base URL<input id="openai-base" placeholder="https://api.openai.com"></label>
+      <section class="panel playground-panel">
+        <div class="panel-heading compact"><div><p class="kicker">03</p><h2>Playground</h2><p>Send one request through the real endpoint.</p></div></div>
+        <div class="field-grid two">
+          <label>Endpoint<select id="playground-endpoint"><option value="chat">OpenAI Chat</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
+          <label>Input<input id="playground-input" value="weather in Shanghai"></label>
         </div>
-        <div class="row">
-          <label>Anthropic mode<select id="anthropic-mode"><option value="mock-only">Mock only</option><option value="mock-then-proxy">Mock, then proxy</option><option value="proxy-only">Proxy only</option></select></label>
-          <label>Anthropic base URL<input id="anthropic-base" placeholder="https://api.anthropic.com"></label>
+        <div class="playground-actions"><button id="playground-send" class="button secondary">Send request</button><span id="playground-meta"></span></div>
+        <pre id="playground-output" class="output">No request yet.</pre>
+      </section>
+
+      <section class="panel activity-panel">
+        <div class="panel-heading compact">
+          <div><p class="kicker">04</p><h2>Recent requests</h2><p>Kept in memory for this process.</p></div>
+          <div class="heading-actions"><button id="refresh-requests" class="icon-button" title="Refresh">↻</button><button id="clear-requests" class="text-button">Clear</button></div>
         </div>
-        <p id="key-status" class="setting-note">API keys are read from environment variables.</p>
-        <button type="submit" class="secondary">Save provider settings</button>
-      </form>
-    </section>
-  </main>
+        <div id="requests" class="requests"></div>
+      </section>
+
+      <details class="panel settings-panel">
+        <summary><span><span class="kicker">ADVANCED</span><strong>Provider forwarding</strong><small>Keep mock-only unless an unmatched request should reach a real API.</small></span><b>Configure</b></summary>
+        <form id="settings-form">
+          <div class="provider-row">
+            <strong>OpenAI</strong>
+            <label>Mode<select id="openai-mode"><option value="mock-only">Mock only</option><option value="mock-then-proxy">Mock, then proxy</option><option value="proxy-only">Proxy only</option></select></label>
+            <label>Base URL<input id="openai-base" placeholder="https://api.openai.com"></label>
+          </div>
+          <div class="provider-row">
+            <strong>Anthropic</strong>
+            <label>Mode<select id="anthropic-mode"><option value="mock-only">Mock only</option><option value="mock-then-proxy">Mock, then proxy</option><option value="proxy-only">Proxy only</option></select></label>
+            <label>Base URL<input id="anthropic-base" placeholder="https://api.anthropic.com"></label>
+          </div>
+          <p id="key-status" class="setting-note">API keys are read from environment variables.</p>
+          <button type="submit" class="button secondary">Save settings</button>
+        </form>
+      </details>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="/static/app.js"></script>
 </body>
 </html>

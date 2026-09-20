@@ -3,6 +3,7 @@ import json
 import httpx
 import pytest
 
+import lmmock.app as app_module
 from lmmock.app import create_app
 
 
@@ -16,7 +17,12 @@ async def test_health_ui_and_default_chat(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         health = await client.get("/healthz")
         assert health.json()["ok"] is True
-        assert "LMMock" in (await client.get("/")).text
+        ui = await client.get("/")
+        logo = await client.get("/static/logo.svg")
+        assert "Shape the model response" in ui.text
+        assert "Recent requests" in ui.text
+        assert logo.status_code == 200
+        assert "image/svg+xml" in logo.headers["content-type"]
         response = await client.post("/v1/chat/completions", json={"model": "mock-model", "messages": [{"role": "user", "content": "hello"}]})
     assert response.status_code == 200
     assert response.json()["choices"][0]["message"]["content"] == "LMMock is running."
@@ -86,3 +92,40 @@ async def test_provider_settings_are_persisted_without_keys(app):
     assert settings.json()["openai_base_url"] == "https://api.openai.com"
     assert "api_key" not in settings.json()
     assert invalid.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_mock_then_proxy_does_not_call_upstream_when_a_rule_matches(app, monkeypatch):
+    called = False
+
+    async def fake_proxy(*args, **kwargs):
+        nonlocal called
+        called = True
+        return None
+
+    monkeypatch.setattr(app_module, "_proxy", fake_proxy)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        await client.put("/__lmmock/api/settings", json={
+            "mode_openai": "mock-then-proxy",
+            "openai_base_url": "https://api.openai.com",
+        })
+        response = await client.post("/v1/chat/completions", json={
+            "model": "mock-model",
+            "messages": [{"role": "user", "content": "hello"}],
+        })
+    assert response.status_code == 200
+    assert response.json()["choices"][0]["message"]["content"] == "LMMock is running."
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_proxy_only_requires_a_base_url(app):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        await client.put("/__lmmock/api/settings", json={"mode_anthropic": "proxy-only"})
+        response = await client.post("/v1/messages", json={
+            "model": "mock-model",
+            "max_tokens": 32,
+            "messages": [{"role": "user", "content": "hello"}],
+        })
+    assert response.status_code == 502
+    assert response.json()["error"]["type"] == "upstream_error"

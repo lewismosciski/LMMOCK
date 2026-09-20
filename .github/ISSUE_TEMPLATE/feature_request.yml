@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a focused mock-server improvement
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What application or agent flow cannot be mocked today?
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: Request and expected response shape
+      description: Remove keys and private content. A minimal JSON example is ideal.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This keeps LMMock focused on local mocking rather than recording, replay, or CI orchestration.
+          required: true

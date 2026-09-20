@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.title="LMMock" \
+      org.opencontainers.image.description="Local visual mock server for OpenAI and Anthropic APIs" \
+      org.opencontainers.image.source="https://github.com/lewismosciski/LMMOCK" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     LMMOCK_HOST=0.0.0.0 \

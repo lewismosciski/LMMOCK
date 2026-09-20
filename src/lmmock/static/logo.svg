@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">LMMock logo</title>
+  <desc id="desc">An M-shaped model signal between two API brackets.</desc>
+  <defs>
+    <linearGradient id="surface" x1="18" y1="10" x2="142" y2="150" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14243E"/>
+      <stop offset="1" stop-color="#08101D"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="48" y1="52" x2="112" y2="110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DE8C5"/>
+      <stop offset="1" stop-color="#5BA7FF"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="5" width="150" height="150" rx="38" fill="url(#surface)" stroke="#2B4467" stroke-width="2"/>
+  <path d="M47 45H35c-5.5 0-10 4.5-10 10v50c0 5.5 4.5 10 10 10h12" fill="none" stroke="#547096" stroke-width="7" stroke-linecap="round"/>
+  <path d="M113 45h12c5.5 0 10 4.5 10 10v50c0 5.5-4.5 10-10 10h-12" fill="none" stroke="#547096" stroke-width="7" stroke-linecap="round"/>
+  <path d="M49 108V53l31 37 31-37v55" fill="none" stroke="url(#signal)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80" cy="90" r="5" fill="#F4FAFF"/>
+  <circle cx="126" cy="34" r="7" fill="#7DE8C5"/>
+  <circle cx="126" cy="34" r="13" fill="none" stroke="#7DE8C5" stroke-opacity=".28" stroke-width="2"/>
+</svg>

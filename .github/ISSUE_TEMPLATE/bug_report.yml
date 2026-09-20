@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible LMMock problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Remove API keys and private prompts before posting.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include the smallest request and the response you received.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: endpoint
+    attributes:
+      label: Endpoint
+      options:
+        - OpenAI Chat Completions
+        - OpenAI Responses
+        - Anthropic Messages
+        - Web interface
+        - Installation or packaging
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: LMMock version
+      placeholder: 0.1.0
+  - type: input
+    id: environment
+    attributes:
+      label: OS and installation method
+      placeholder: macOS 15, release archive

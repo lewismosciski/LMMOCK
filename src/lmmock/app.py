@@ -184,7 +184,11 @@ async def _proxy(request: Request, provider: str, endpoint: str, body: bytes, st
     if provider == "anthropic" and api_key:
         headers["x-api-key"] = api_key
     client = httpx.AsyncClient(timeout=60)
-    upstream = await client.send(client.build_request("POST", target, headers=headers, content=body), stream=stream)
+    try:
+        upstream = await client.send(client.build_request("POST", target, headers=headers, content=body), stream=stream)
+    except httpx.HTTPError:
+        await client.aclose()
+        raise
     response_headers = {name: value for name, value in upstream.headers.items() if name.lower() not in HOP_HEADERS}
     if not stream:
         content = await upstream.aread()
@@ -227,16 +231,33 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             return JSONResponse({"error": {"message": "Request body must be JSON", "type": "invalid_request_error"}}, status_code=400)
         if not isinstance(body, dict):
             return JSONResponse({"error": {"message": "Request body must be an object", "type": "invalid_request_error"}}, status_code=400)
-        proxied = await _proxy(request, provider, endpoint, raw, bool(body.get("stream")), store)
         settings = store.get_settings()
         mode = settings.get("mode_openai" if provider == "openai" else "mode_anthropic", "mock-only")
-        if proxied is not None and mode == "proxy-only":
-            return proxied
         semantic = request_from(provider, operation, body)
         started = time.perf_counter()
-        rule, reply = resolve(store.list_rules(), semantic)
-        if reply is None and proxied is not None:
+
+        async def forward() -> Response:
+            request_id = _id("req")
+            try:
+                proxied = await _proxy(request, provider, endpoint, raw, semantic.stream, store)
+            except httpx.HTTPError:
+                proxied = None
+                message = "Upstream request failed. Check the provider URL and network connection."
+            else:
+                message = "Proxy mode requires a provider base URL."
+            if proxied is None:
+                error = SemanticReply("error", text=message, status_code=502, error_type="upstream_error")
+                state.requests.appendleft({"id": request_id, "provider": provider, "operation": operation, "model": semantic.model, "rule": "upstream", "status": 502, "duration_ms": round((time.perf_counter() - started) * 1000, 2), "input": semantic.text[-240:]})
+                return _error(provider, error, request_id)
+            state.requests.appendleft({"id": request_id, "provider": provider, "operation": operation, "model": semantic.model, "rule": "upstream", "status": proxied.status_code, "duration_ms": round((time.perf_counter() - started) * 1000, 2), "input": semantic.text[-240:]})
             return proxied
+
+        if mode == "proxy-only":
+            return await forward()
+
+        rule, reply = resolve(store.list_rules(), semantic)
+        if reply is None and mode == "mock-then-proxy":
+            return await forward()
         if reply is None:
             reply = SemanticReply("text", text="No rule matched.")
         if rule and rule.get("delay_ms"):

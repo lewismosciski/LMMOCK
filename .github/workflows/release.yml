@@ -1,0 +1,140 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  python-dist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e '.[dev]' build twine
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          test "v${version}" = "${GITHUB_REF_NAME}"
+      - run: python -m pytest -q
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/*
+          if-no-files-found: error
+
+  binaries:
+    name: ${{ matrix.asset }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: linux-x86_64
+            format: tar
+          - os: macos-15-intel
+            asset: macos-x86_64
+            format: tar
+          - os: macos-15
+            asset: macos-arm64
+            format: tar
+          - os: windows-latest
+            asset: windows-x86_64
+            format: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install . pyinstaller
+      - run: pyinstaller --noconfirm --clean packaging/lmmock.spec
+      - name: Package Unix archive
+        if: matrix.format == 'tar'
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          tar -C dist -czf "release-assets/lmmock-${GITHUB_REF_NAME}-${{ matrix.asset }}.tar.gz" lmmock
+      - name: Package Windows archive
+        if: matrix.format == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release-assets | Out-Null
+          Compress-Archive -Path dist/lmmock -DestinationPath "release-assets/lmmock-${env:GITHUB_REF_NAME}-${{ matrix.asset }}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.asset }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/lmmock
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  github-release:
+    needs: [python-dist, binaries, container]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          path: release-assets
+          merge-multiple: true
+      - name: Write checksums
+        working-directory: release-assets
+        run: sha256sum * > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+
+  publish-pypi:
+    if: vars.PUBLISH_PYPI == 'true'
+    needs: python-dist
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1

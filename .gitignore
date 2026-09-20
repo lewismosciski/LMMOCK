@@ -8,3 +8,8 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# Local product research and planning notes
+docs/development-plan.md
+docs/distribution-and-launch.md
+docs/research.md
