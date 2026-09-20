@@ -77,7 +77,7 @@ def request_from(provider: str, operation: str, body: dict[str, Any]) -> Semanti
                 if content:
                     pieces.append(f"{message.get('role', 'message')}: {content}")
         text = "\n".join(piece for piece in pieces if piece)
-    return SemanticRequest(provider, operation, str(body.get("model", "mock-model")), text, body, bool(body.get("stream")))
+    return SemanticRequest(provider, operation, str(body.get("model", "gpt-5.6-sol")), text, body, bool(body.get("stream")))
 
 
 def _fool_ai(value: str) -> str:
@@ -147,7 +147,7 @@ def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict
         elif reply_type == "error":
             reply = SemanticReply("error", text=str(reply_data.get("message", "Mock error")), status_code=int(reply_data.get("status_code", 500)), error_type=str(reply_data.get("error_type", "mock_error")))
         elif reply_type == "random":
-            size = max(0, min(int(reply_data.get("size", 1024)), 10_000_000))
+            size = max(0, min(int(reply_data.get("size", 4096)), 10_000_000))
             reply = SemanticReply("text", text=_random_text(size))
         else:
             reply = SemanticReply("text", text=str(reply_data.get("content", "")))

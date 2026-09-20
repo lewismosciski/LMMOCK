@@ -105,6 +105,18 @@ class Store:
                 conn.execute(
                     "INSERT INTO settings(key,value) VALUES ('seed_fool_ai_v1', 'true')"
                 )
+            configured = conn.execute("SELECT value FROM settings WHERE key='model_configs'").fetchone()
+            if configured is not None:
+                model_configs = json.loads(configured["value"])
+                names_and_protocols = [(item.get("name"), item.get("protocol")) for item in model_configs]
+                if names_and_protocols == [("mock-model", "openai"), ("mock-claude", "anthropic")]:
+                    model_configs[0]["name"] = "gpt-5.6-sol"
+                    model_configs[1]["name"] = "claude-5-1-opus"
+                    conn.execute(
+                        "UPDATE settings SET value=? WHERE key='model_configs'",
+                        (json.dumps(model_configs),),
+                    )
+            conn.execute("DELETE FROM settings WHERE key='default_model'")
 
     @staticmethod
     def _now() -> str:
@@ -259,10 +271,9 @@ class Store:
         default_group_id = groups[0]["id"]
         result: dict[str, Any] = {
             "model_configs": [
-                {"name": "mock-model", "protocol": "openai", "api_key": "", "group_ids": [default_group_id]},
-                {"name": "mock-claude", "protocol": "anthropic", "api_key": "", "group_ids": [default_group_id]},
+                {"name": "gpt-5.6-sol", "protocol": "openai", "api_key": "", "group_ids": [default_group_id]},
+                {"name": "claude-5-1-opus", "protocol": "anthropic", "api_key": "", "group_ids": [default_group_id]},
             ],
-            "default_model": "mock-model",
             "active_group_id": default_group_id,
         }
         saved = {row["key"]: json.loads(row["value"]) for row in rows}
@@ -275,7 +286,6 @@ class Store:
                 {"name": str(model), "protocol": "openai", "api_key": saved.get("api_key", ""), "group_ids": [default_group_id]}
                 for model in legacy_models
             ]
-            result["default_model"] = str(saved.get("default_model", legacy_models[0]))
         group_ids = {group["id"] for group in groups}
         if result["active_group_id"] not in group_ids:
             result["active_group_id"] = min(group_ids)
@@ -284,7 +294,7 @@ class Store:
 
     def set_settings(self, values: dict[str, Any]) -> dict[str, Any]:
         allowed = {
-            "model_configs", "default_model", "active_group_id",
+            "model_configs", "active_group_id",
         }
         candidate = self.get_settings()
         candidate.update({key: value for key, value in values.items() if key in allowed})
@@ -313,16 +323,12 @@ class Store:
         models = [config["name"] for config in model_configs]
         if len(models) != len(set(models)):
             raise ValueError("Model names must be unique")
-        default_model = str(candidate["default_model"]).strip()
-        if default_model not in models:
-            raise ValueError("default_model must be included in models")
         active_group_id = int(candidate["active_group_id"])
         if active_group_id not in group_ids:
             raise ValueError("active_group_id does not exist")
         normalized = {
             **candidate,
             "model_configs": model_configs,
-            "default_model": default_model,
             "active_group_id": active_group_id,
         }
         with self.lock, self._connect() as conn:
@@ -351,7 +357,7 @@ class Store:
             raise ValueError("reply_type must be text, json, tool, error, or random")
         result["reply"] = dict(result.get("reply") or {})
         if result["reply_type"] == "random":
-            result["reply"]["size"] = max(0, min(int(result["reply"].get("size", 1024)), 10_000_000))
+            result["reply"]["size"] = max(0, min(int(result["reply"].get("size", 4096)), 10_000_000))
         result["delay_ms"] = max(0, min(int(result.get("delay_ms", 0)), 30_000))
         result["group_id"] = int(result.get("group_id") or 1)
         return result

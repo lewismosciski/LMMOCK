@@ -266,7 +266,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             return JSONResponse({"error": {"message": "Request body must be an object", "type": "invalid_request_error"}}, status_code=400)
         settings = store.get_settings()
         body = dict(body)
-        provider_default = next((config["name"] for config in settings["model_configs"] if config["protocol"] == provider), settings["default_model"])
+        provider_default = next((config["name"] for config in settings["model_configs"] if config["protocol"] == provider), "")
         body.setdefault("model", provider_default)
         semantic = request_from(provider, operation, body)
         config = configured_model(settings, semantic.model, provider)
@@ -363,7 +363,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         except json.JSONDecodeError:
             return JSONResponse({"type": "error", "error": {"type": "invalid_request_error", "message": "Request body must be JSON"}}, status_code=400)
         settings = store.get_settings()
-        anthropic_default = next((config["name"] for config in settings["model_configs"] if config["protocol"] == "anthropic"), settings["default_model"])
+        anthropic_default = next((config["name"] for config in settings["model_configs"] if config["protocol"] == "anthropic"), "")
         body.setdefault("model", anthropic_default)
         config = configured_model(settings, str(body["model"]), "anthropic")
         if config is None:

@@ -42,6 +42,8 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 
 请求默认按优先级匹配该模型绑定的全部行为组。也可以通过 `x-lmmock-group: happy-path` 或数字 ID，将单次请求限定到其中一个已绑定的行为组。
 
+新工作区默认提供 OpenAI 兼容接口的 `gpt-5.6-sol` 和 Anthropic 接口的 `claude-5-1-opus`。如果请求没有携带 `model`，LMMock 会使用该接口配置列表中的第一个模型。
+
 新工作区的默认行为组包含一条可编辑的 `foolAI` 示例规则，例如把 `你吃饭了吗？` 稳定回复为 `我吃饭了！`；也可以从模板列表再次创建它。
 
 规则还可以按精确大小返回每次新生成的随机 ASCII 数据，范围为 0–10 MB。可直接使用内置的“大体积随机数据”模板测试客户端处理大模型响应的能力。“最近请求”区域会展示输入、输出、总 Token 的估算量以及按模型统计。统计保存在内存中，清空请求或重启服务时归零。
@@ -72,12 +74,12 @@ from openai import OpenAI
 
 client = OpenAI(base_url="http://127.0.0.1:17321/openai/v1", api_key="mock")
 
-client.completions.create(model="mock-model", prompt="hello")
+client.completions.create(model="gpt-5.6-sol", prompt="hello")
 client.chat.completions.create(
-    model="mock-claude",
+    model="gpt-5.6-sol",
     messages=[{"role": "user", "content": "hello"}],
 )
-client.responses.create(model="mock-model", input="hello")
+client.responses.create(model="gpt-5.6-sol", input="hello")
 client.models.list()
 ```
 
@@ -86,7 +88,7 @@ from anthropic import Anthropic
 
 client = Anthropic(base_url="http://127.0.0.1:17321/anthropic", api_key="mock")
 client.messages.create(
-    model="mock-model",
+    model="claude-5-1-opus",
     max_tokens=128,
     messages=[{"role": "user", "content": "hello"}],
 )
@@ -95,7 +97,7 @@ client.models.list()
 
 ## 在 Claude Code 中使用
 
-LMMock 提供 Anthropic Messages 和 Models 兼容接口。先配置一个名为 `mock-claude` 的 Anthropic 模型，并将它的 API Key 设为 `local-test-key`；再把 Claude Code 指向本地服务，开启 Gateway 模型发现，然后在 `/model` 中选择 `mock-claude`：
+LMMock 提供 Anthropic Messages 和 Models 兼容接口。先把内置 Anthropic 模型 `claude-5-1-opus` 的 API Key 设为 `local-test-key`；再把 Claude Code 指向本地服务，开启 Gateway 模型发现，然后在 `/model` 中选择 `claude-5-1-opus`：
 
 ```bash
 python3 run.py
@@ -113,7 +115,7 @@ claude
 在用户级 `~/.codex/config.toml` 中添加自定义 Provider：
 
 ```toml
-model = "mock-model"
+model = "gpt-5.6-sol"
 model_provider = "lmmock"
 
 [model_providers.lmmock]
@@ -123,7 +125,7 @@ env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```
 
-先在 Configuration 中把 `mock-model` 这一行的 API Key 设为 `local-test-key`。下面的环境变量由 Codex 读取，因为 `env_key` 指向它；LMMock 会和该模型直接显示的 Key 比较：
+先在 Configuration 中把 `gpt-5.6-sol` 这一行的 API Key 设为 `local-test-key`。下面的环境变量由 Codex 读取，因为 `env_key` 指向它；LMMock 会和该模型直接显示的 Key 比较：
 
 ```bash
 export LMMOCK_API_KEY="local-test-key"

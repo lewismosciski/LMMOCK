@@ -42,6 +42,8 @@ Open [http://127.0.0.1:17321](http://127.0.0.1:17321). Standalone Linux, macOS, 
 
 Rules from all groups assigned to the requested model participate by priority. To restrict one request to a single assigned group, send `x-lmmock-group: happy-path` or its numeric group ID.
 
+New workspaces start with `gpt-5.6-sol` for the OpenAI-compatible interface and `claude-5-1-opus` for Anthropic. If a request omits `model`, LMMock uses the first configured model for that request's interface.
+
 New workspaces include an editable `foolAI` example. A Chinese question such as `你吃饭了吗？` becomes the deterministic reply `我吃饭了！`. The same example is also available in the template list.
 
 Rules can also return fresh random ASCII data at an exact size from 0 to 10 MB. Use the built-in **Large random data** template to test clients against large model responses. The Recent requests panel shows estimated input, output, and total token usage, including a per-model breakdown. Statistics live in memory and reset when the request list is cleared or the server restarts.
@@ -72,12 +74,12 @@ from openai import OpenAI
 
 client = OpenAI(base_url="http://127.0.0.1:17321/openai/v1", api_key="mock")
 
-client.completions.create(model="mock-model", prompt="hello")
+client.completions.create(model="gpt-5.6-sol", prompt="hello")
 client.chat.completions.create(
-    model="mock-claude",
+    model="gpt-5.6-sol",
     messages=[{"role": "user", "content": "hello"}],
 )
-client.responses.create(model="mock-model", input="hello")
+client.responses.create(model="gpt-5.6-sol", input="hello")
 client.models.list()
 ```
 
@@ -86,7 +88,7 @@ from anthropic import Anthropic
 
 client = Anthropic(base_url="http://127.0.0.1:17321/anthropic", api_key="mock")
 client.messages.create(
-    model="mock-model",
+    model="claude-5-1-opus",
     max_tokens=128,
     messages=[{"role": "user", "content": "hello"}],
 )
@@ -95,7 +97,7 @@ client.models.list()
 
 ## Use with Claude Code
 
-LMMock exposes Anthropic-format Messages and Models APIs. Configure an Anthropic model named `mock-claude` with API key `local-test-key`, point Claude Code to LMMock, enable gateway model discovery, then choose `mock-claude` from `/model`:
+LMMock exposes Anthropic-format Messages and Models APIs. Configure the built-in Anthropic model `claude-5-1-opus` with API key `local-test-key`, point Claude Code to LMMock, enable gateway model discovery, then choose `claude-5-1-opus` from `/model`:
 
 ```bash
 python3 run.py
@@ -113,7 +115,7 @@ Run `/status` to verify the base URL. See Anthropic's [gateway connection docume
 Add a custom provider to your user-level `~/.codex/config.toml`:
 
 ```toml
-model = "mock-model"
+model = "gpt-5.6-sol"
 model_provider = "lmmock"
 
 [model_providers.lmmock]
@@ -123,7 +125,7 @@ env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```
 
-Set the `mock-model` row's API key to `local-test-key` in Configuration. The environment variable below is read by Codex because `env_key` points to it; LMMock checks it against that model's visible key:
+Set the `gpt-5.6-sol` row's API key to `local-test-key` in Configuration. The environment variable below is read by Codex because `env_key` points to it; LMMock checks it against that model's visible key:
 
 ```bash
 export LMMOCK_API_KEY="local-test-key"

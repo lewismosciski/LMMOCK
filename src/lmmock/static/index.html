@@ -12,7 +12,7 @@
   <header class="topbar">
     <a class="brand" href="/" aria-label="LMMock home">
       <img src="/static/logo.svg" alt="" width="38" height="38">
-      <span><strong>LMMock</strong><small data-i18n="localWorkspace">local workspace</small></span>
+      <strong>LMMock</strong>
     </a>
     <div class="topbar-actions">
       <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch language">EN</button>
@@ -78,7 +78,7 @@
           </div>
           <label id="content-wrap"><span data-i18n="content">Content</span><textarea id="content" rows="6" placeholder="Weather in ${city}: sunny."></textarea><small data-i18n="captureHelp">Regex captures can be inserted with named or numbered placeholders.</small></label>
           <div id="random-wrap" class="hidden field-grid two">
-            <label><span data-i18n="randomSize">Data size (bytes)</span><input id="random-size" type="number" value="1024" min="0" max="10000000"></label>
+            <label><span data-i18n="randomSize">Data size (bytes)</span><input id="random-size" type="number" value="4096" min="0" max="10000000"></label>
             <p class="field-note" data-i18n="randomHelp">Generates exact-size random ASCII data, up to 10 MB.</p>
           </div>
           <div id="tool-wrap" class="hidden field-grid two">
@@ -131,7 +131,6 @@
             <div id="model-configs" class="model-configs"></div>
           </section>
           <div class="settings-footer">
-            <label><span data-i18n="defaultModel">Default model</span><select id="default-model"></select></label>
             <button type="submit" class="button primary" data-i18n="saveSettings">Save settings</button>
           </div>
         </form>
