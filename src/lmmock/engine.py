@@ -48,6 +48,8 @@ def request_from(provider: str, operation: str, body: dict[str, Any]) -> Semanti
                 for call in message.get("tool_calls", []):
                     pieces.append(f"tool_call: {call}")
         text = "\n".join(pieces)
+    elif provider == "openai" and operation == "completions":
+        text = _part_text(body.get("prompt", ""))
     elif provider == "openai" and operation == "responses":
         text = _part_text(body.get("input", ""))
         if isinstance(body.get("input"), list):

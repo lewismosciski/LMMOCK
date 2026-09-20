@@ -6,7 +6,7 @@
 
 <p align="center"><strong>Mock 模型，运行真实应用。</strong></p>
 
-<p align="center">面向 OpenAI 与 Anthropic API 的本地可视化 Mock Server。</p>
+<p align="center">面向 OpenAI 与 Anthropic API 的可视化 Mock Server。</p>
 
 <p align="center">
   <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
@@ -19,11 +19,9 @@
   <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
 </p>
 
-LMMock 让应用获得稳定可控的大模型回复，同时保留原来的 SDK 调用代码。在网页中创建规则，把应用指向本地地址，就能在没有真实 API Key 和 Token 消耗的情况下运行完整流程。
+LMMock 让 AI 应用获得稳定可控的模型回复，同时保留原有 SDK 调用。你可以在网页中配置模型、接口、行为组与规则，无需真实 Provider Token 即可运行应用。
 
 ## 快速启动
-
-从源码启动：
 
 ```bash
 git clone https://github.com/lewismosciski/LMMOCK.git
@@ -38,48 +36,121 @@ docker run --rm -p 127.0.0.1:8000:8000 \
   -v lmmock-data:/data ghcr.io/lewismosciski/lmmock:latest
 ```
 
-打开 [http://127.0.0.1:8000](http://127.0.0.1:8000)。Linux、macOS 与 Windows 的压缩包可以从 [Releases 页面](https://github.com/lewismosciski/LMMOCK/releases)下载。
+打开 [http://127.0.0.1:8000](http://127.0.0.1:8000)。Linux、macOS 与 Windows 独立程序可在 [Releases 页面](https://github.com/lewismosciski/LMMOCK/releases)下载。
 
-## 接入现有 SDK
+## 模型、行为组与规则
+
+- **模型**：应用可以请求的模型名称，可以添加 `gpt-5-mock`、`claude-mock` 等自定义名称并选择默认模型。
+- **接口**：可以在配置中分别启用或关闭。
+- **行为组**：隔离不同规则集合，例如 `happy-path`、`tool-calls`、`failures`。
+- **规则**：归属于一个行为组，可以匹配全部请求、包含文本或正则表达式。
+
+请求默认使用网页中激活的行为组。也可以通过 `x-lmmock-group: happy-path` 或 `x-lmmock-group: 2` 为单次请求指定行为组。
+
+## 支持的 API
+
+| Provider | Endpoint | JSON | 流式响应 | 工具调用 |
+| --- | --- | :---: | :---: | :---: |
+| OpenAI | `POST /v1/completions` | ✓ | ✓ | — |
+| OpenAI | `POST /v1/chat/completions` | ✓ | ✓ | ✓ |
+| OpenAI | `POST /v1/responses` | ✓ | ✓ | ✓ |
+| OpenAI | `GET /v1/models` | ✓ | — | — |
+| Anthropic | `POST /v1/messages` | ✓ | ✓ | ✓ |
+| Anthropic | `POST /v1/messages/count_tokens` | ✓ | — | — |
+| Anthropic | `GET /v1/models` | ✓ | — | — |
+
+查看全部已配置模型：
+
+```bash
+curl http://127.0.0.1:8000/v1/models
+```
+
+## SDK 示例
 
 ```python
 from openai import OpenAI
 
 client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="mock")
-answer = client.responses.create(model="mock-model", input="上海天气如何")
-print(answer.output_text)
+
+client.completions.create(model="mock-model", prompt="hello")
+client.chat.completions.create(
+    model="mock-model",
+    messages=[{"role": "user", "content": "hello"}],
+)
+client.responses.create(model="mock-model", input="hello")
+client.models.list()
 ```
 
 ```python
 from anthropic import Anthropic
 
 client = Anthropic(base_url="http://127.0.0.1:8000", api_key="mock")
-answer = client.messages.create(
+client.messages.create(
     model="mock-model",
     max_tokens=128,
-    messages=[{"role": "user", "content": "上海天气如何"}],
+    messages=[{"role": "user", "content": "hello"}],
 )
-print(answer.content[0].text)
+client.models.list()
 ```
 
-## 支持范围
+## 在 Claude Code 中使用
 
-| Provider | Endpoint | JSON | 流式响应 | 工具调用 |
-| --- | --- | :---: | :---: | :---: |
-| OpenAI | `POST /v1/chat/completions` | ✓ | ✓ | ✓ |
-| OpenAI | `POST /v1/responses` | ✓ | ✓ | ✓ |
-| Anthropic | `POST /v1/messages` | ✓ | ✓ | ✓ |
+LMMock 提供 Anthropic Messages 和 Models 兼容接口。使用密钥启动 LMMock，把 Claude Code 指向本地服务，开启 Gateway 模型发现，然后在 `/model` 中选择 `mock-model`：
 
-规则可以匹配全部请求、普通文本或正则表达式；回复支持文本、JSON 文本、工具调用、HTTP 错误、捕获变量模板和固定延迟。规则与 Provider 设置保存在本地 SQLite 文件中。
+```bash
+export LMMOCK_API_KEY="local-test-key"
+python3 run.py
 
-上游转发默认关闭。真实密钥只从 `LMMOCK_OPENAI_API_KEY` 和 `LMMOCK_ANTHROPIC_API_KEY` 环境变量读取，不会写入 SQLite。
+export ANTHROPIC_BASE_URL="http://127.0.0.1:8000"
+export ANTHROPIC_AUTH_TOKEN="$LMMOCK_API_KEY"
+export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
+claude
+```
+
+可以运行 `/status` 检查 Base URL。持久化配置方式见 Anthropic 官方的 [Gateway 接入文档](https://code.claude.com/docs/en/llm-gateway-connect)。
+
+## 在 Codex CLI 中使用
+
+在用户级 `~/.codex/config.toml` 中添加自定义 Provider：
+
+```toml
+model = "mock-model"
+model_provider = "lmmock"
+
+[model_providers.lmmock]
+name = "LMMock"
+base_url = "http://127.0.0.1:8000/v1"
+env_key = "LMMOCK_API_KEY"
+wire_api = "responses"
+```
+
+然后使用同一个本地密钥启动两个进程：
+
+```bash
+export LMMOCK_API_KEY="local-test-key"
+python3 run.py
+codex
+```
+
+Codex 的 Provider 设置必须放在用户级配置中，而不是项目本地配置。可参考 OpenAI 官方的[自定义模型 Provider](https://developers.openai.com/es-419/docs/config-file/config-advanced#proveedores-de-modelos-personalizados)与[配置参考](https://developers.openai.com/es-419/docs/config-file/config-reference)。
+
+## 网络访问与 API Key
+
+默认只监听本机。需要在局域网共享或放到反向代理之后时，应同时监听所有网卡并启用密钥：
+
+```bash
+export LMMOCK_API_KEY="choose-a-long-random-key"
+python3 run.py --host 0.0.0.0
+```
+
+客户端可以通过 `Authorization: Bearer ...` 或 `x-api-key: ...` 发送密钥。对应环境变量为 `LMMOCK_HOST` 和 `LMMOCK_API_KEY`。暴露服务前请阅读 [SECURITY.md](SECURITY.md)。
+
+上游转发默认关闭。真实 Provider 密钥只从 `LMMOCK_OPENAI_API_KEY` 和 `LMMOCK_ANTHROPIC_API_KEY` 读取，管理 API 不会返回密钥。
 
 ## 参与贡献
 
-我们非常欢迎 Bug 报告、协议样例、文档修正和范围清晰的 Pull Request。提交前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-LMMock 专注于本地 Mock，不扩展流量录制、Cassette 回放或 CI 产品。
+我们非常欢迎任何形式、任何规模的贡献。欢迎提交 Issue 或 Pull Request，参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 开源协议
 
-Apache-2.0
+MIT

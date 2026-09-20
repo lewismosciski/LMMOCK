@@ -21,6 +21,11 @@ DEFAULT_RULE = {
     "delay_ms": 0,
 }
 
+DEFAULT_GROUP = {
+    "name": "Default",
+    "description": "The default behavior for requests without an explicit group.",
+}
+
 
 class Store:
     def __init__(self, path: Path):
@@ -39,6 +44,15 @@ class Store:
     def _init_db(self) -> None:
         with self.lock, self._connect() as conn:
             conn.execute(
+                """CREATE TABLE IF NOT EXISTS groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )"""
+            )
+            conn.execute(
                 """CREATE TABLE IF NOT EXISTS rules (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
@@ -55,8 +69,18 @@ class Store:
                 )"""
             )
             conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            now = self._now()
+            conn.execute(
+                "INSERT OR IGNORE INTO groups(name,description,created_at,updated_at) VALUES (?,?,?,?)",
+                (DEFAULT_GROUP["name"], DEFAULT_GROUP["description"], now, now),
+            )
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(rules)").fetchall()}
+            if "group_id" not in columns:
+                conn.execute("ALTER TABLE rules ADD COLUMN group_id INTEGER")
+            default_group_id = conn.execute("SELECT id FROM groups ORDER BY id LIMIT 1").fetchone()["id"]
+            conn.execute("UPDATE rules SET group_id=? WHERE group_id IS NULL", (default_group_id,))
             if conn.execute("SELECT 1 FROM rules LIMIT 1").fetchone() is None:
-                self.create_rule(DEFAULT_RULE, conn=conn)
+                self.create_rule({**DEFAULT_RULE, "group_id": default_group_id}, conn=conn)
 
     @staticmethod
     def _now() -> str:
@@ -75,13 +99,17 @@ class Store:
             "reply_type": row["reply_type"],
             "reply": json.loads(row["reply_json"]),
             "delay_ms": row["delay_ms"],
+            "group_id": row["group_id"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
 
-    def list_rules(self) -> list[dict[str, Any]]:
+    def list_rules(self, group_id: int | None = None) -> list[dict[str, Any]]:
         with self.lock, self._connect() as conn:
-            rows = conn.execute("SELECT * FROM rules ORDER BY priority ASC, id ASC").fetchall()
+            if group_id is None:
+                rows = conn.execute("SELECT * FROM rules ORDER BY priority ASC, id ASC").fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM rules WHERE group_id=? ORDER BY priority ASC, id ASC", (group_id,)).fetchall()
             return [self._row(row) for row in rows]
 
     def create_rule(self, data: dict[str, Any], conn: sqlite3.Connection | None = None) -> dict[str, Any]:
@@ -93,14 +121,16 @@ class Store:
         assert conn is not None
         now = self._now()
         try:
+            if conn.execute("SELECT 1 FROM groups WHERE id=?", (values["group_id"],)).fetchone() is None:
+                raise ValueError("group_id does not exist")
             cur = conn.execute(
                 """INSERT INTO rules
-                (name, enabled, priority, scopes, match_type, match_value, reply_type, reply_json, delay_ms, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (name, enabled, priority, scopes, match_type, match_value, reply_type, reply_json, delay_ms, group_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     values["name"], int(values["enabled"]), values["priority"], json.dumps(values["scopes"]),
                     values["match_type"], values["match_value"], values["reply_type"], json.dumps(values["reply"]),
-                    values["delay_ms"], now, now,
+                    values["delay_ms"], values["group_id"], now, now,
                 ),
             )
             conn.commit()
@@ -114,12 +144,14 @@ class Store:
     def update_rule(self, rule_id: int, data: dict[str, Any]) -> dict[str, Any] | None:
         values = self._validate_rule(data)
         with self.lock, self._connect() as conn:
+            if conn.execute("SELECT 1 FROM groups WHERE id=?", (values["group_id"],)).fetchone() is None:
+                raise ValueError("group_id does not exist")
             cur = conn.execute(
                 """UPDATE rules SET name=?, enabled=?, priority=?, scopes=?, match_type=?, match_value=?,
-                reply_type=?, reply_json=?, delay_ms=?, updated_at=? WHERE id=?""",
+                reply_type=?, reply_json=?, delay_ms=?, group_id=?, updated_at=? WHERE id=?""",
                 (values["name"], int(values["enabled"]), values["priority"], json.dumps(values["scopes"]),
                  values["match_type"], values["match_value"], values["reply_type"], json.dumps(values["reply"]),
-                 values["delay_ms"], self._now(), rule_id),
+                 values["delay_ms"], values["group_id"], self._now(), rule_id),
             )
             conn.commit()
             if cur.rowcount == 0:
@@ -132,11 +164,74 @@ class Store:
             conn.commit()
             return cur.rowcount > 0
 
+    @staticmethod
+    def _group_row(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "description": row["description"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def list_groups(self) -> list[dict[str, Any]]:
+        with self.lock, self._connect() as conn:
+            rows = conn.execute("SELECT * FROM groups ORDER BY id").fetchall()
+            return [self._group_row(row) for row in rows]
+
+    def create_group(self, data: dict[str, Any]) -> dict[str, Any]:
+        name = str(data.get("name", "")).strip()[:120]
+        if not name:
+            raise ValueError("Group name is required")
+        description = str(data.get("description", "")).strip()[:500]
+        now = self._now()
+        with self.lock, self._connect() as conn:
+            try:
+                cur = conn.execute(
+                    "INSERT INTO groups(name,description,created_at,updated_at) VALUES (?,?,?,?)",
+                    (name, description, now, now),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("Group name must be unique") from exc
+            conn.commit()
+            return self._group_row(conn.execute("SELECT * FROM groups WHERE id=?", (cur.lastrowid,)).fetchone())
+
+    def update_group(self, group_id: int, data: dict[str, Any]) -> dict[str, Any] | None:
+        name = str(data.get("name", "")).strip()[:120]
+        if not name:
+            raise ValueError("Group name is required")
+        description = str(data.get("description", "")).strip()[:500]
+        with self.lock, self._connect() as conn:
+            try:
+                cur = conn.execute(
+                    "UPDATE groups SET name=?, description=?, updated_at=? WHERE id=?",
+                    (name, description, self._now(), group_id),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("Group name must be unique") from exc
+            conn.commit()
+            if cur.rowcount == 0:
+                return None
+            return self._group_row(conn.execute("SELECT * FROM groups WHERE id=?", (group_id,)).fetchone())
+
+    def delete_group(self, group_id: int) -> bool:
+        with self.lock, self._connect() as conn:
+            if conn.execute("SELECT COUNT(*) AS count FROM groups").fetchone()["count"] <= 1:
+                raise ValueError("The last behavior group cannot be deleted")
+            if conn.execute("SELECT 1 FROM rules WHERE group_id=? LIMIT 1", (group_id,)).fetchone():
+                raise ValueError("Move or delete this group's rules first")
+            cur = conn.execute("DELETE FROM groups WHERE id=?", (group_id,))
+            conn.commit()
+            return cur.rowcount > 0
+
     def get_settings(self) -> dict[str, Any]:
         with self.lock, self._connect() as conn:
             rows = conn.execute("SELECT key, value FROM settings").fetchall()
         result: dict[str, Any] = {
-            "model": "mock-model",
+            "models": ["mock-model"],
+            "default_model": "mock-model",
+            "enabled_operations": ["chat", "completions", "responses", "messages"],
+            "active_group_id": self.list_groups()[0]["id"],
             "forward_openai": False,
             "forward_anthropic": False,
             "openai_base_url": "",
@@ -154,13 +249,50 @@ class Store:
             mode_key = f"mode_{provider}"
             if forward_key not in saved and mode_key in saved:
                 result[forward_key] = saved[mode_key] != "mock-only"
+        if "models" not in saved and "model" in saved:
+            result["models"] = [str(saved["model"])]
+            result["default_model"] = str(saved["model"])
+        group_ids = {group["id"] for group in self.list_groups()}
+        if result["active_group_id"] not in group_ids:
+            result["active_group_id"] = min(group_ids)
         return result
 
     def set_settings(self, values: dict[str, Any]) -> dict[str, Any]:
-        allowed = {"model", "forward_openai", "forward_anthropic", "openai_base_url", "anthropic_base_url"}
+        allowed = {
+            "models", "default_model", "enabled_operations", "active_group_id",
+            "forward_openai", "forward_anthropic", "openai_base_url", "anthropic_base_url",
+        }
+        candidate = self.get_settings()
+        candidate.update({key: value for key, value in values.items() if key in allowed})
+        if not isinstance(candidate["models"], list):
+            raise ValueError("models must be a list")
+        models = list(dict.fromkeys(str(model).strip()[:120] for model in candidate["models"] if str(model).strip()))
+        if not models:
+            raise ValueError("At least one model is required")
+        default_model = str(candidate["default_model"]).strip()
+        if default_model not in models:
+            raise ValueError("default_model must be included in models")
+        valid_operations = {"chat", "completions", "responses", "messages"}
+        if not isinstance(candidate["enabled_operations"], list):
+            raise ValueError("enabled_operations must be a list")
+        operations = list(dict.fromkeys(candidate["enabled_operations"]))
+        if not operations or any(operation not in valid_operations for operation in operations):
+            raise ValueError("enabled_operations contains an unsupported operation")
+        group_ids = {group["id"] for group in self.list_groups()}
+        active_group_id = int(candidate["active_group_id"])
+        if active_group_id not in group_ids:
+            raise ValueError("active_group_id does not exist")
+        normalized = {
+            **candidate,
+            "models": models,
+            "default_model": default_model,
+            "enabled_operations": operations,
+            "active_group_id": active_group_id,
+        }
         with self.lock, self._connect() as conn:
-            for key, value in values.items():
+            for key in values:
                 if key in allowed:
+                    value = normalized[key]
                     if key in {"forward_openai", "forward_anthropic"}:
                         if not isinstance(value, bool):
                             raise ValueError(f"{key} must be true or false")
@@ -187,4 +319,5 @@ class Store:
             raise ValueError("reply_type must be text, json, tool, or error")
         result["reply"] = dict(result.get("reply") or {})
         result["delay_ms"] = max(0, min(int(result.get("delay_ms", 0)), 30_000))
+        result["group_id"] = int(result.get("group_id") or 1)
         return result

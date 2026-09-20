@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lmmock"
 version = "0.1.0"
-description = "A local visual mock server for LLM APIs"
+description = "A visual mock server for LLM APIs"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "Apache-2.0"
+license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "LMMock contributors"}]
 keywords = ["llm", "mock-server", "openai", "anthropic", "testing"]
@@ -27,8 +27,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8,<9",
-  "pytest-asyncio>=0.24,<1",
+  "pytest>=8,<10",
+  "pytest-asyncio>=0.24,<2",
 ]
 
 [project.scripts]

@@ -5,7 +5,7 @@ Git tags are the release switch. Pushing `vX.Y.Z` runs `.github/workflows/releas
 - a wheel and source distribution;
 - standalone archives for Linux, macOS, and Windows;
 - `linux/amd64` and `linux/arm64` images on GHCR;
-- a GitHub Release with generated notes and checksums.
+- a GitHub Release with generated notes.
 
 ## Release checklist
 

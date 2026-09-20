@@ -14,7 +14,10 @@
       <img src="/static/logo.svg" alt="" width="38" height="38">
       <span><strong>LMMock</strong><small data-i18n="localWorkspace">local workspace</small></span>
     </a>
-    <button id="language-toggle" class="language-toggle" type="button" aria-label="切换到中文">中文</button>
+    <div class="topbar-actions">
+      <button id="access-key-button" class="key-button" type="button"><span class="key-dot"></span><span data-i18n="apiKey">API key</span></button>
+      <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch language">EN</button>
+    </div>
   </header>
 
   <div class="shell">
@@ -39,6 +42,11 @@
           <div><p class="kicker">01</p><h2 data-i18n="rules">Rules</h2><p data-i18n="rulesHelp">Lowest priority number wins.</p></div>
           <button id="new-rule" class="button primary" data-i18n="newRule">New rule</button>
         </div>
+        <div class="group-bar">
+          <label><span data-i18n="behaviorGroup">Behavior group</span><select id="group-select"></select></label>
+          <button id="edit-group" class="icon-button" type="button" title="Edit behavior group">✎</button>
+          <button id="new-group" class="button secondary" type="button" data-i18n="newGroup">New group</button>
+        </div>
         <div class="template-heading"><strong data-i18n="startTemplate">Start from a template</strong><small data-i18n="templateHelp">Choose one, adjust it, then save.</small></div>
         <div id="templates" class="template-grid"></div>
         <div class="saved-heading" data-i18n="savedRules">Saved rules</div>
@@ -52,9 +60,10 @@
         </div>
         <form id="rule-form">
           <input type="hidden" id="rule-id">
+          <label class="rule-group-field"><span data-i18n="behaviorGroup">Behavior group</span><select id="rule-group"></select></label>
           <div class="field-grid three">
             <label><span data-i18n="name">Name</span><input id="name" required maxlength="120" data-i18n-placeholder="namePlaceholder" placeholder="Weather reply"></label>
-            <label><span data-i18n="scope">Scope</span><select id="scope"><option value="*" data-i18n="allEndpoints">All endpoints</option><option value="chat">OpenAI Chat</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
+            <label><span data-i18n="scope">Scope</span><select id="scope"><option value="*" data-i18n="allEndpoints">All endpoints</option><option value="chat">OpenAI Chat</option><option value="completions">OpenAI Completions</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
             <label><span data-i18n="priority">Priority</span><input id="priority" type="number" value="100" min="1" max="9999"></label>
           </div>
           <div class="field-grid two">
@@ -83,8 +92,9 @@
 
       <section class="panel playground-panel">
         <div class="panel-heading compact"><div><p class="kicker">03</p><h2>Playground</h2><p data-i18n="playgroundHelp">Send one request through the real endpoint.</p></div></div>
-        <div class="field-grid two">
-          <label><span data-i18n="endpoint">Endpoint</span><select id="playground-endpoint"><option value="chat">OpenAI Chat</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
+        <div class="field-grid three playground-fields">
+          <label><span data-i18n="endpoint">Endpoint</span><select id="playground-endpoint"><option value="chat">OpenAI Chat</option><option value="completions">OpenAI Completions</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
+          <label><span data-i18n="model">Model</span><select id="playground-model"></select></label>
           <label><span data-i18n="input">Input</span><textarea id="playground-input" rows="3">weather in Shanghai</textarea></label>
         </div>
         <div class="playground-actions"><button id="playground-send" class="button secondary" data-i18n="sendRequest">Send request</button><span id="playground-meta"></span></div>
@@ -99,9 +109,29 @@
         <div id="requests" class="requests"></div>
       </section>
 
-      <details class="panel settings-panel">
-        <summary><span><span class="kicker" data-i18n="advanced">ADVANCED</span><strong data-i18n="providerForwarding">Provider forwarding</strong><small data-i18n="forwardHelp">When enabled, only requests that match no rule reach the real API.</small></span><b data-i18n="configure">Configure</b></summary>
+      <details class="panel settings-panel" open>
+        <summary><span><span class="kicker" data-i18n="configuration">CONFIGURATION</span><strong data-i18n="modelsInterfacesSecurity">Models, interfaces &amp; security</strong><small data-i18n="configurationHelp">Control what LMMock exposes before configuring optional forwarding.</small></span><b data-i18n="configure">Configure</b></summary>
         <form id="settings-form">
+          <section class="settings-section">
+            <div class="settings-section-title"><strong data-i18n="mockSurface">Mock API surface</strong><small data-i18n="mockSurfaceHelp">One model per line. Disabled interfaces return 404.</small></div>
+            <div class="field-grid two">
+              <label><span data-i18n="modelNames">Model names</span><textarea id="models" rows="4" placeholder="mock-model"></textarea></label>
+              <label><span data-i18n="defaultModel">Default model</span><select id="default-model"></select></label>
+            </div>
+            <div class="operation-grid">
+              <label><input id="operation-chat" type="checkbox">OpenAI Chat Completions</label>
+              <label><input id="operation-completions" type="checkbox">OpenAI Completions</label>
+              <label><input id="operation-responses" type="checkbox">OpenAI Responses</label>
+              <label><input id="operation-messages" type="checkbox">Anthropic Messages</label>
+            </div>
+          </section>
+          <section class="settings-section">
+            <div class="settings-section-title"><strong data-i18n="accessSecurity">Access security</strong><small data-i18n="accessSecurityHelp">Set the server key with --api-key or LMMOCK_API_KEY, then enter it in this browser session.</small></div>
+            <p id="access-status" class="setting-note"></p>
+            <button id="open-access-key" type="button" class="button secondary" data-i18n="enterApiKey">Enter API key</button>
+          </section>
+          <section class="settings-section">
+            <div class="settings-section-title"><strong data-i18n="providerForwarding">Provider forwarding</strong><small data-i18n="forwardHelp">When enabled, only requests that match no rule reach the real API.</small></div>
           <div class="provider-row">
             <strong>OpenAI</strong>
             <label class="forward-control"><span data-i18n="forwardUnmatched">Forward unmatched requests</span><span class="switch"><input id="openai-forward" type="checkbox"><span></span></span></label>
@@ -113,6 +143,7 @@
             <label><span data-i18n="baseUrl">Base URL</span><input id="anthropic-base" placeholder="https://api.anthropic.com"></label>
           </div>
           <p id="key-status" class="setting-note">API keys are read from environment variables.</p>
+          </section>
           <button type="submit" class="button secondary" data-i18n="saveSettings">Save settings</button>
         </form>
       </details>
@@ -125,6 +156,25 @@
       <section><h3 data-i18n="request">Request</h3><pre id="request-detail"></pre></section>
       <section><h3 data-i18n="response">Response</h3><pre id="response-detail"></pre></section>
     </div>
+  </dialog>
+
+  <dialog id="group-dialog" class="small-dialog">
+    <form id="group-form">
+      <div class="dialog-heading"><div><p class="kicker" data-i18n="behaviorGroup">BEHAVIOR GROUP</p><h2 id="group-dialog-title"></h2></div><button id="close-group-dialog" type="button" class="icon-button">×</button></div>
+      <input id="group-id" type="hidden">
+      <label><span data-i18n="name">Name</span><input id="group-name" maxlength="120" required></label>
+      <label><span data-i18n="description">Description</span><textarea id="group-description" rows="3"></textarea></label>
+      <div class="form-actions"><button class="button primary" type="submit" data-i18n="saveGroup">Save group</button><button id="delete-group" class="button danger" type="button" data-i18n="delete">Delete</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="access-key-dialog" class="small-dialog">
+    <form id="access-key-form">
+      <div class="dialog-heading"><div><p class="kicker" data-i18n="accessSecurity">ACCESS SECURITY</p><h2 data-i18n="enterApiKey">Enter API key</h2></div><button id="close-access-key-dialog" type="button" class="icon-button">×</button></div>
+      <label><span data-i18n="apiKey">API key</span><input id="access-key" type="password" autocomplete="off"></label>
+      <p class="setting-note" data-i18n="browserKeyHelp">Stored only for this browser tab. Leave blank to clear it.</p>
+      <button class="button primary" type="submit" data-i18n="useApiKey">Use API key</button>
+    </form>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
