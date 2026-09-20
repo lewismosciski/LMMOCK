@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">LMMock mark</title>
+  <desc id="desc">A stylized M built from a model response waveform.</desc>
+  <defs>
+    <linearGradient id="glow" x1="24" y1="24" x2="136" y2="136" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DE2C2"/>
+      <stop offset="1" stop-color="#59A8FF"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#020617" flood-opacity=".45"/>
+    </filter>
+  </defs>
+  <rect width="160" height="160" rx="36" fill="#0B1220"/>
+  <circle cx="80" cy="80" r="55" fill="#12243A" stroke="#223B5A" stroke-width="2"/>
+  <path d="M42 111V49h14l24 31 24-31h14v62h-15V75l-23 29h-1L57 75v36H42Z" fill="url(#glow)" filter="url(#shadow)"/>
+  <circle cx="124" cy="37" r="7" fill="#7DE2C2"/>
+  <circle cx="124" cy="37" r="13" fill="none" stroke="#7DE2C2" stroke-opacity=".25" stroke-width="2"/>
+</svg>
