@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 from fnmatch import fnmatchcase
 from dataclasses import dataclass
@@ -26,6 +27,19 @@ class SemanticReply:
     arguments: dict[str, Any] | None = None
     status_code: int = 200
     error_type: str = "mock_error"
+
+
+RANDOM_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+
+def _random_text(size: int) -> str:
+    chunks = []
+    remaining = size
+    while remaining:
+        length = min(remaining, 65_536)
+        chunks.append("".join(random.choices(RANDOM_ALPHABET, k=length)))
+        remaining -= length
+    return "".join(chunks)
 
 
 def _part_text(value: Any) -> str:
@@ -132,6 +146,9 @@ def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict
             reply = SemanticReply("json", text=json.dumps(value, ensure_ascii=False), value=value)
         elif reply_type == "error":
             reply = SemanticReply("error", text=str(reply_data.get("message", "Mock error")), status_code=int(reply_data.get("status_code", 500)), error_type=str(reply_data.get("error_type", "mock_error")))
+        elif reply_type == "random":
+            size = max(0, min(int(reply_data.get("size", 1024)), 10_000_000))
+            reply = SemanticReply("text", text=_random_text(size))
         else:
             reply = SemanticReply("text", text=str(reply_data.get("content", "")))
         return rule, reply

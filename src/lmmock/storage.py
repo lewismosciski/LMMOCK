@@ -347,9 +347,11 @@ class Store:
             raise ValueError("match_type must be all, contains, or regex")
         result["match_value"] = str(result.get("match_value", ""))[:4000]
         result["reply_type"] = str(result["reply_type"])
-        if result["reply_type"] not in {"text", "json", "tool", "error"}:
-            raise ValueError("reply_type must be text, json, tool, or error")
+        if result["reply_type"] not in {"text", "json", "tool", "error", "random"}:
+            raise ValueError("reply_type must be text, json, tool, error, or random")
         result["reply"] = dict(result.get("reply") or {})
+        if result["reply_type"] == "random":
+            result["reply"]["size"] = max(0, min(int(result["reply"].get("size", 1024)), 10_000_000))
         result["delay_ms"] = max(0, min(int(result.get("delay_ms", 0)), 30_000))
         result["group_id"] = int(result.get("group_id") or 1)
         return result

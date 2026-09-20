@@ -1,10 +1,6 @@
 <p align="center">
-  <img src="src/lmmock/static/logo.svg" alt="LMMock" width="132" height="132">
+  <img src="src/lmmock/static/hero.svg" alt="LMMock — Mock the model. Run the real app." width="100%">
 </p>
-
-<h1 align="center">LMMock</h1>
-
-<p align="center"><strong>Mock the model. Run the real app.</strong></p>
 
 <p align="center">A visual mock server for OpenAI and Anthropic APIs.</p>
 
@@ -47,6 +43,8 @@ Open [http://127.0.0.1:17321](http://127.0.0.1:17321). Standalone Linux, macOS, 
 Rules from all groups assigned to the requested model participate by priority. To restrict one request to a single assigned group, send `x-lmmock-group: happy-path` or its numeric group ID.
 
 New workspaces include an editable `foolAI` example. A Chinese question such as `你吃饭了吗？` becomes the deterministic reply `我吃饭了！`. The same example is also available in the template list.
+
+Rules can also return fresh random ASCII data at an exact size from 0 to 10 MB. Use the built-in **Large random data** template to test clients against large model responses. The Recent requests panel shows estimated input, output, and total token usage, including a per-model breakdown. Statistics live in memory and reset when the request list is cleared or the server restarts.
 
 ## Supported APIs
 

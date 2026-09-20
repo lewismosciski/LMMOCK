@@ -21,6 +21,7 @@ async def test_health_ui_and_default_chat(app):
         assert health.json()["ok"] is True
         ui = await client.get("/")
         logo = await client.get("/static/logo.svg")
+        hero = await client.get("/static/hero.svg")
         assert "Shape the model response" in ui.text
         assert "Recent requests" in ui.text
         assert "Keep your app real" not in ui.text
@@ -37,6 +38,8 @@ async def test_health_ui_and_default_chat(app):
         assert "OpenAI Completions" in ui.text
         assert logo.status_code == 200
         assert "image/svg+xml" in logo.headers["content-type"]
+        assert hero.status_code == 200
+        assert "Mock the model" in hero.text
         response = await client.post("/openai/v1/chat/completions", json={"model": "mock-model", "messages": [{"role": "user", "content": "hello"}]})
         assert (await client.get("/v1/models")).status_code == 404
     assert response.status_code == 200
@@ -339,3 +342,57 @@ def test_existing_database_migrates_to_groups_and_model_list(tmp_path):
 def test_default_port_is_uncommon(monkeypatch):
     monkeypatch.delenv("LMMOCK_PORT", raising=False)
     assert port() == 17321
+
+
+@pytest.mark.asyncio
+async def test_random_reply_generates_requested_size(app):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        created = await client.post("/__lmmock/api/rules", json={
+            "name": "Random payload",
+            "priority": 1,
+            "scopes": ["*"],
+            "match_type": "contains",
+            "match_value": "large payload",
+            "reply_type": "random",
+            "reply": {"size": 4096},
+        })
+        first = await client.post("/openai/v1/chat/completions", json={
+            "model": "mock-model",
+            "messages": [{"role": "user", "content": "large payload"}],
+        })
+        second = await client.post("/openai/v1/chat/completions", json={
+            "model": "mock-model",
+            "messages": [{"role": "user", "content": "large payload"}],
+        })
+    first_text = first.json()["choices"][0]["message"]["content"]
+    second_text = second.json()["choices"][0]["message"]["content"]
+    assert created.status_code == 201
+    assert len(first_text.encode("ascii")) == 4096
+    assert len(second_text) == 4096
+    assert first_text != second_text
+    assert first.json()["usage"]["output_tokens"] == 1024
+
+
+@pytest.mark.asyncio
+async def test_token_statistics_aggregate_by_model_and_reset(app):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        openai = await client.post("/openai/v1/completions", json={"model": "mock-model", "prompt": "hello"})
+        anthropic = await client.post("/anthropic/v1/messages", json={
+            "model": "mock-claude",
+            "max_tokens": 32,
+            "messages": [{"role": "user", "content": "hello"}],
+        })
+        recent = (await client.get("/__lmmock/api/requests")).json()
+        stats = (await client.get("/__lmmock/api/stats")).json()
+        cleared = await client.delete("/__lmmock/api/requests")
+        empty_stats = (await client.get("/__lmmock/api/stats")).json()
+
+    expected_total = openai.json()["usage"]["total_tokens"] + sum(anthropic.json()["usage"].values())
+    assert stats["estimated"] is True
+    assert stats["requests"] == 2
+    assert stats["total_tokens"] == expected_total
+    assert stats["total_tokens"] == stats["input_tokens"] + stats["output_tokens"]
+    assert set(stats["by_model"]) == {"mock-model", "mock-claude"}
+    assert all("usage" in item for item in recent)
+    assert cleared.status_code == 204
+    assert empty_stats == {"requests": 0, "input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "by_model": {}, "estimated": True}

@@ -73,10 +73,14 @@
             <label id="match-wrap"><span data-i18n="text">Text</span><input id="match-value" placeholder="weather in (?P&lt;city&gt;.+)"></label>
           </div>
           <div class="field-grid two">
-            <label><span data-i18n="reply">Reply</span><select id="reply-type"><option value="text" data-i18n="text">Text</option><option value="json" data-i18n="jsonText">JSON text</option><option value="tool" data-i18n="toolCall">Tool call</option><option value="error" data-i18n="httpError">HTTP error</option></select></label>
+            <label><span data-i18n="reply">Reply</span><select id="reply-type"><option value="text" data-i18n="text">Text</option><option value="json" data-i18n="jsonText">JSON text</option><option value="random" data-i18n="randomData">Random data</option><option value="tool" data-i18n="toolCall">Tool call</option><option value="error" data-i18n="httpError">HTTP error</option></select></label>
             <label><span data-i18n="delay">Delay (ms)</span><input id="delay" type="number" value="0" min="0" max="30000"></label>
           </div>
           <label id="content-wrap"><span data-i18n="content">Content</span><textarea id="content" rows="6" placeholder="Weather in ${city}: sunny."></textarea><small data-i18n="captureHelp">Regex captures can be inserted with named or numbered placeholders.</small></label>
+          <div id="random-wrap" class="hidden field-grid two">
+            <label><span data-i18n="randomSize">Data size (bytes)</span><input id="random-size" type="number" value="1024" min="0" max="10000000"></label>
+            <p class="field-note" data-i18n="randomHelp">Generates exact-size random ASCII data, up to 10 MB.</p>
+          </div>
           <div id="tool-wrap" class="hidden field-grid two">
             <label><span data-i18n="toolName">Tool name</span><input id="tool-name" placeholder="get_weather"></label>
             <label><span data-i18n="arguments">Arguments (JSON)</span><textarea id="arguments" rows="4">{"city":"Shanghai"}</textarea></label>
@@ -111,6 +115,8 @@
           <div><p class="kicker">04</p><h2 data-i18n="recentRequests">Recent requests</h2><p data-i18n="recentHelp">Select one to inspect its request and response.</p></div>
           <div class="heading-actions"><button id="refresh-requests" class="icon-button" title="Refresh">↻</button><button id="clear-requests" class="text-button" data-i18n="clear">Clear</button></div>
         </div>
+        <div id="token-stats" class="token-stats" aria-live="polite"></div>
+        <div id="model-token-stats" class="model-token-stats"></div>
         <div id="requests" class="requests"></div>
       </section>
 

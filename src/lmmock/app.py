@@ -23,6 +23,27 @@ class State:
     def __init__(self, store: Store):
         self.store = store
         self.requests: deque[dict[str, Any]] = deque(maxlen=100)
+        self.reset_stats()
+
+    def reset_stats(self) -> None:
+        self.stats: dict[str, Any] = {
+            "requests": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "by_model": {},
+        }
+
+    def add_usage(self, model: str, usage: dict[str, int]) -> None:
+        self.stats["requests"] += 1
+        model_stats = self.stats["by_model"].setdefault(
+            model,
+            {"requests": 0, "input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        )
+        model_stats["requests"] += 1
+        for key in ("input_tokens", "output_tokens", "total_tokens"):
+            self.stats[key] += usage[key]
+            model_stats[key] += usage[key]
 
 
 def _json(data: Any) -> str:
@@ -33,9 +54,19 @@ def _id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:20]}"
 
 
-def _usage(text: str) -> dict[str, int]:
-    output = max(1, len(text) // 4)
-    return {"input_tokens": max(1, len(text) // 4), "output_tokens": output, "total_tokens": output + max(1, len(text) // 4)}
+def _token_count(text: str) -> int:
+    """Return a lightweight, tokenizer-free estimate used consistently by every API."""
+    return (len(text) + 3) // 4
+
+
+def _usage(input_text: str, output_text: str) -> dict[str, int]:
+    input_tokens = _token_count(input_text)
+    output_tokens = _token_count(output_text)
+    return {"input_tokens": input_tokens, "output_tokens": output_tokens, "total_tokens": input_tokens + output_tokens}
+
+
+def _reply_output(reply: SemanticReply) -> str:
+    return _json(reply.arguments or {}) if reply.kind == "tool" else reply.text
 
 
 def _error_payload(provider: str, reply: SemanticReply) -> dict[str, Any]:
@@ -67,7 +98,7 @@ def _chat_payload(request: SemanticRequest, reply: SemanticReply, response_id: s
     else:
         message = {"role": "assistant", "content": reply.text}
         finish = "stop"
-    return {"id": response_id, "object": "chat.completion", "created": int(time.time()), "model": request.model, "choices": [{"index": 0, "message": message, "finish_reason": finish}], "usage": _usage(request.text + reply.text)}
+    return {"id": response_id, "object": "chat.completion", "created": int(time.time()), "model": request.model, "choices": [{"index": 0, "message": message, "finish_reason": finish}], "usage": _usage(request.text, _reply_output(reply))}
 
 
 def _completion_payload(request: SemanticRequest, reply: SemanticReply, response_id: str) -> dict[str, Any]:
@@ -77,7 +108,7 @@ def _completion_payload(request: SemanticRequest, reply: SemanticReply, response
         "created": int(time.time()),
         "model": request.model,
         "choices": [{"index": 0, "text": reply.text, "finish_reason": "stop", "logprobs": None}],
-        "usage": _usage(request.text + reply.text),
+        "usage": _usage(request.text, _reply_output(reply)),
     }
 
 
@@ -88,7 +119,7 @@ def _responses_payload(request: SemanticRequest, reply: SemanticReply, response_
     else:
         output = [{"id": _id("msg"), "type": "message", "status": "completed", "role": "assistant", "content": [{"type": "output_text", "text": reply.text, "annotations": []}]}]
         output_text = reply.text
-    return {"id": response_id, "object": "response", "created_at": int(time.time()), "status": "completed", "model": request.model, "output": output, "output_text": output_text, "usage": _usage(request.text + reply.text)}
+    return {"id": response_id, "object": "response", "created_at": int(time.time()), "status": "completed", "model": request.model, "output": output, "output_text": output_text, "usage": _usage(request.text, _reply_output(reply))}
 
 
 def _anthropic_payload(request: SemanticRequest, reply: SemanticReply, response_id: str) -> dict[str, Any]:
@@ -98,7 +129,7 @@ def _anthropic_payload(request: SemanticRequest, reply: SemanticReply, response_
     else:
         content = [{"type": "text", "text": reply.text}]
         stop_reason = "end_turn"
-    usage = _usage(request.text + reply.text)
+    usage = _usage(request.text, _reply_output(reply))
     return {"id": response_id, "type": "message", "role": "assistant", "model": request.model, "content": content, "stop_reason": stop_reason, "stop_sequence": None, "usage": {"input_tokens": usage["input_tokens"], "output_tokens": usage["output_tokens"]}}
 
 
@@ -119,21 +150,21 @@ async def _chat_stream(request: SemanticRequest, reply: SemanticReply, response_
             yield _sse({**base, "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": arguments[start:start + 32]}}]}, "finish_reason": None}]})
         finish = "tool_calls"
     else:
-        for start in range(0, len(reply.text), 32):
+        for start in range(0, len(reply.text), 4096):
             await asyncio.sleep(0)
-            yield _sse({**base, "choices": [{"index": 0, "delta": {"content": reply.text[start:start + 32]}, "finish_reason": None}]})
+            yield _sse({**base, "choices": [{"index": 0, "delta": {"content": reply.text[start:start + 4096]}, "finish_reason": None}]})
         finish = "stop"
     yield _sse({**base, "choices": [{"index": 0, "delta": {}, "finish_reason": finish}]})
     if include_usage:
-        yield _sse({**base, "choices": [], "usage": _usage(request.text + reply.text)})
+        yield _sse({**base, "choices": [], "usage": _usage(request.text, _reply_output(reply))})
     yield b"data: [DONE]\n\n"
 
 
 async def _completion_stream(request: SemanticRequest, reply: SemanticReply, response_id: str) -> AsyncIterator[bytes]:
     base = {"id": response_id, "object": "text_completion", "created": int(time.time()), "model": request.model}
-    for start in range(0, len(reply.text), 32):
+    for start in range(0, len(reply.text), 4096):
         await asyncio.sleep(0)
-        yield _sse({**base, "choices": [{"index": 0, "text": reply.text[start:start + 32], "finish_reason": None, "logprobs": None}]})
+        yield _sse({**base, "choices": [{"index": 0, "text": reply.text[start:start + 4096], "finish_reason": None, "logprobs": None}]})
     yield _sse({**base, "choices": [{"index": 0, "text": "", "finish_reason": "stop", "logprobs": None}]})
     yield b"data: [DONE]\n\n"
 
@@ -165,8 +196,8 @@ async def _responses_stream(request: SemanticRequest, reply: SemanticReply, resp
     else:
         yield event("response.output_item.added", output_index=0, item={"id": item_id, "type": "message", "status": "in_progress", "role": "assistant", "content": []})
         yield event("response.content_part.added", output_index=0, content_index=0, part={"type": "output_text", "text": "", "annotations": []})
-        for start in range(0, len(reply.text), 32):
-            yield event("response.output_text.delta", item_id=item_id, output_index=0, content_index=0, delta=reply.text[start:start + 32])
+        for start in range(0, len(reply.text), 4096):
+            yield event("response.output_text.delta", item_id=item_id, output_index=0, content_index=0, delta=reply.text[start:start + 4096])
         yield event("response.output_text.done", item_id=item_id, output_index=0, content_index=0, text=reply.text)
         yield event("response.content_part.done", item_id=item_id, output_index=0, content_index=0, part={"type": "output_text", "text": reply.text, "annotations": []})
     yield event("response.output_item.done", output_index=0, item={"id": item_id})
@@ -184,8 +215,8 @@ async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, resp
             yield _sse({"type": "content_block_delta", "index": 0, "delta": {"type": "input_json_delta", "partial_json": arguments[start:start + 32]}}, "content_block_delta")
     else:
         yield _sse({"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}, "content_block_start")
-        for start in range(0, len(reply.text), 32):
-            yield _sse({"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": reply.text[start:start + 32]}}, "content_block_delta")
+        for start in range(0, len(reply.text), 4096):
+            yield _sse({"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": reply.text[start:start + 4096]}}, "content_block_delta")
     yield _sse({"type": "content_block_stop", "index": 0}, "content_block_stop")
     yield _sse({"type": "message_delta", "delta": {"stop_reason": message["stop_reason"]}, "usage": message["usage"]}, "message_delta")
     yield _sse({"type": "message_stop"}, "message_stop")
@@ -254,7 +285,9 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         group_label = ", ".join(item["name"] for item in selected_groups)
         started = time.perf_counter()
 
-        def record(request_id: str, rule_name: str | None, status: int, response_body: Any) -> None:
+        def record(request_id: str, rule_name: str | None, status: int, response_body: Any, output_text: str) -> None:
+            usage = _usage(semantic.text, output_text)
+            state.add_usage(semantic.model, usage)
             state.requests.appendleft({
                 "id": request_id,
                 "provider": provider,
@@ -267,6 +300,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
                 "input": semantic.text[-240:],
                 "request": _snapshot(body),
                 "response": _snapshot(response_body),
+                "usage": usage,
             })
 
         rules = [rule for selected_group in selected_groups for rule in store.list_rules(selected_group["id"])]
@@ -278,30 +312,30 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             await asyncio.sleep(rule["delay_ms"] / 1000)
         request_id = _id("req")
         if reply.kind == "error":
-            record(request_id, rule["name"] if rule else None, reply.status_code, _error_payload(provider, reply))
+            record(request_id, rule["name"] if rule else None, reply.status_code, _error_payload(provider, reply), reply.text)
             return _error(provider, reply, request_id)
         response_id = _id("chatcmpl" if operation == "chat" else "cmpl" if operation == "completions" else "resp" if operation == "responses" else "msg")
         if operation == "chat":
             payload = _chat_payload(semantic, reply, response_id)
-            record(request_id, rule["name"] if rule else None, reply.status_code, payload)
+            record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
             if semantic.stream:
                 include_usage = bool((body.get("stream_options") or {}).get("include_usage"))
                 return StreamingResponse(_chat_stream(semantic, reply, response_id, include_usage), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
             return JSONResponse(payload, headers={"x-request-id": request_id})
         if operation == "completions":
             payload = _completion_payload(semantic, reply, response_id)
-            record(request_id, rule["name"] if rule else None, reply.status_code, payload)
+            record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
             if semantic.stream:
                 return StreamingResponse(_completion_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
             return JSONResponse(payload, headers={"x-request-id": request_id})
         if operation == "responses":
             payload = _responses_payload(semantic, reply, response_id)
-            record(request_id, rule["name"] if rule else None, reply.status_code, payload)
+            record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
             if semantic.stream:
                 return StreamingResponse(_responses_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
             return JSONResponse(payload, headers={"x-request-id": request_id})
         payload = _anthropic_payload(semantic, reply, response_id)
-        record(request_id, rule["name"] if rule else None, reply.status_code, payload)
+        record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
         if semantic.stream:
             return StreamingResponse(_anthropic_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "request-id": request_id})
         return JSONResponse(payload, headers={"request-id": request_id})
@@ -338,7 +372,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         if auth_error:
             return auth_error
         semantic = request_from("anthropic", "messages", body)
-        return JSONResponse({"input_tokens": max(1, len(semantic.text) // 4)})
+        return JSONResponse({"input_tokens": _token_count(semantic.text)})
 
     @app.get("/openai/v1/models")
     async def openai_models() -> dict[str, Any]:
@@ -445,9 +479,14 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     async def recent_requests() -> list[dict[str, Any]]:
         return list(state.requests)
 
+    @app.get("/__lmmock/api/stats")
+    async def usage_stats() -> dict[str, Any]:
+        return {**state.stats, "estimated": True}
+
     @app.delete("/__lmmock/api/requests")
     async def clear_requests() -> Response:
         state.requests.clear()
+        state.reset_stats()
         return Response(status_code=204)
 
     return app

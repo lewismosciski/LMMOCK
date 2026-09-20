@@ -1,10 +1,6 @@
 <p align="center">
-  <img src="src/lmmock/static/logo.svg" alt="LMMock" width="132" height="132">
+  <img src="src/lmmock/static/hero.svg" alt="LMMock — Mock 模型，运行真实应用。" width="100%">
 </p>
-
-<h1 align="center">LMMock</h1>
-
-<p align="center"><strong>Mock 模型，运行真实应用。</strong></p>
 
 <p align="center">面向 OpenAI 与 Anthropic API 的可视化 Mock Server。</p>
 
@@ -47,6 +43,8 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 请求默认按优先级匹配该模型绑定的全部行为组。也可以通过 `x-lmmock-group: happy-path` 或数字 ID，将单次请求限定到其中一个已绑定的行为组。
 
 新工作区的默认行为组包含一条可编辑的 `foolAI` 示例规则，例如把 `你吃饭了吗？` 稳定回复为 `我吃饭了！`；也可以从模板列表再次创建它。
+
+规则还可以按精确大小返回每次新生成的随机 ASCII 数据，范围为 0–10 MB。可直接使用内置的“大体积随机数据”模板测试客户端处理大模型响应的能力。“最近请求”区域会展示输入、输出、总 Token 的估算量以及按模型统计。统计保存在内存中，清空请求或重启服务时归零。
 
 ## 支持的 API
 

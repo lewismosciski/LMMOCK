@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-labelledby="title desc">
+  <title id="title">LMMock</title>
+  <desc id="desc">Mock the model. Run the real app. OpenAI-compatible and Anthropic mock APIs.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset=".58" stop-color="#0d1726"/>
+      <stop offset="1" stop-color="#08111c"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientTransform="translate(228 34) rotate(54) scale(470 390)">
+      <stop stop-color="#2a78bc" stop-opacity=".38"/>
+      <stop offset="1" stop-color="#2a78bc" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientTransform="translate(1120 396) rotate(-133) scale(420 300)">
+      <stop stop-color="#38cfa1" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#38cfa1" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#88f1cf"/>
+      <stop offset="1" stop-color="#5aa9ff"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#9db3ca" stroke-opacity=".055"/>
+    </pattern>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="12" stdDeviation="15" flood-color="#000" flood-opacity=".32"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="420" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="420" rx="24" fill="url(#glowA)"/>
+  <rect width="1280" height="420" rx="24" fill="url(#glowB)"/>
+  <rect width="1280" height="420" rx="24" fill="url(#grid)"/>
+  <rect x=".75" y=".75" width="1278.5" height="418.5" rx="23.25" fill="none" stroke="#8ca5c0" stroke-opacity=".2" stroke-width="1.5"/>
+
+  <g transform="translate(76 70)">
+    <g filter="url(#shadow)">
+      <rect width="76" height="76" rx="20" fill="#101f31" stroke="#8be9cd" stroke-opacity=".42"/>
+      <path d="M22 24v28h11V37l10 15h11V24H43v15L33 24H22Z" fill="url(#accent)"/>
+      <circle cx="60" cy="17" r="5" fill="#7fe7c6"/>
+    </g>
+    <text x="96" y="55" fill="#f4f8fc" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="58" font-weight="750" letter-spacing="-3">LMMock</text>
+    <text x="0" y="133" fill="#e7f0fa" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="30" font-weight="650" letter-spacing="-.8">Mock the model. Run the real app.</text>
+    <text x="0" y="174" fill="#91a3b9" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17">Deterministic replies for AI applications and agents — no provider tokens required.</text>
+    <g transform="translate(0 213)" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="12" font-weight="650">
+      <rect width="156" height="34" rx="17" fill="#17273a" stroke="#5aa9ff" stroke-opacity=".4"/>
+      <circle cx="19" cy="17" r="4" fill="#63adff"/>
+      <text x="32" y="21" fill="#c9def5">OpenAI-compatible</text>
+      <rect x="168" width="112" height="34" rx="17" fill="#17273a" stroke="#88f1cf" stroke-opacity=".36"/>
+      <circle cx="187" cy="17" r="4" fill="#88f1cf"/>
+      <text x="200" y="21" fill="#cfe9e1">Anthropic</text>
+      <rect x="292" width="108" height="34" rx="17" fill="#17273a" stroke="#aabbd0" stroke-opacity=".25"/>
+      <text x="311" y="21" fill="#b8c7d8">Local-first</text>
+    </g>
+  </g>
+
+  <g transform="translate(755 62)" filter="url(#shadow)" font-family="Inter,Segoe UI,Arial,sans-serif">
+    <rect width="450" height="296" rx="19" fill="#0b1421" stroke="#35475e"/>
+    <circle cx="24" cy="22" r="4" fill="#ff8295"/>
+    <circle cx="39" cy="22" r="4" fill="#f5c769"/>
+    <circle cx="54" cy="22" r="4" fill="#72dab8"/>
+    <text x="378" y="26" fill="#6f8299" font-size="10">LMMOCK</text>
+    <path d="M0 44h450" stroke="#26374b"/>
+
+    <g transform="translate(22 67)">
+      <rect width="120" height="64" rx="11" fill="#111f2e" stroke="#30455f"/>
+      <text x="14" y="22" fill="#71869f" font-size="9" font-weight="700" letter-spacing="1.1">YOUR APP</text>
+      <text x="14" y="45" fill="#dbe8f5" font-family="ui-monospace,monospace" font-size="12">POST /chat</text>
+      <path d="M151 32h35" stroke="#5caaff" stroke-width="2"/>
+      <path d="m182 27 7 5-7 5" fill="none" stroke="#5caaff" stroke-width="2"/>
+      <rect x="198" width="94" height="64" rx="11" fill="#10251f" stroke="#387a68"/>
+      <text x="212" y="22" fill="#77ad9c" font-size="9" font-weight="700" letter-spacing="1.1">RULES</text>
+      <text x="212" y="45" fill="#d7f2e9" font-family="ui-monospace,monospace" font-size="12">matched</text>
+      <path d="M302 32h35" stroke="#80e3c4" stroke-width="2"/>
+      <path d="m333 27 7 5-7 5" fill="none" stroke="#80e3c4" stroke-width="2"/>
+      <rect x="349" width="57" height="64" rx="11" fill="#111f2e" stroke="#30455f"/>
+      <path d="m366 24 6 7-6 7m23-14-6 7 6 7" fill="none" stroke="#8fc4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <g transform="translate(22 155)">
+      <rect width="406" height="116" rx="12" fill="#08111c" stroke="#26384d"/>
+      <text x="16" y="25" fill="#5f7691" font-size="9" font-weight="700" letter-spacing="1.1">MOCK RESPONSE</text>
+      <text x="16" y="51" fill="#75a8dd" font-family="ui-monospace,monospace" font-size="12">{</text>
+      <text x="31" y="51" fill="#a7bacf" font-family="ui-monospace,monospace" font-size="12">"model":</text>
+      <text x="91" y="51" fill="#83e2c4" font-family="ui-monospace,monospace" font-size="12">"your-model"</text>
+      <text x="177" y="51" fill="#a7bacf" font-family="ui-monospace,monospace" font-size="12">,</text>
+      <text x="31" y="73" fill="#a7bacf" font-family="ui-monospace,monospace" font-size="12">"content":</text>
+      <text x="106" y="73" fill="#83e2c4" font-family="ui-monospace,monospace" font-size="12">"Exactly what you expect."</text>
+      <text x="16" y="95" fill="#75a8dd" font-family="ui-monospace,monospace" font-size="12">}</text>
+      <rect x="337" y="15" width="52" height="21" rx="10.5" fill="#17352d"/>
+      <circle cx="350" cy="25.5" r="3" fill="#82e8c8"/>
+      <text x="359" y="29" fill="#9ce7d0" font-size="9" font-weight="700">200</text>
+    </g>
+  </g>
+</svg>
