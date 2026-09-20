@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LMMock</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">LOCAL LLM MOCK SERVER</p>
+      <h1>LMMock</h1>
+      <p class="tagline">Mock the model. Run the real app.</p>
+    </div>
+    <span id="status" class="status">connecting</span>
+  </header>
+
+  <main class="layout">
+    <section class="card rules-card">
+      <div class="section-heading">
+        <div><h2>Rules</h2><p>First matching rule wins.</p></div>
+        <button id="new-rule" class="primary">New rule</button>
+      </div>
+      <div id="rules" class="rules"></div>
+    </section>
+
+    <section class="card editor-card">
+      <div class="section-heading"><div><h2 id="editor-title">New rule</h2><p>Keep the response small and explicit.</p></div></div>
+      <form id="rule-form">
+        <input type="hidden" id="rule-id">
+        <label>Name<input id="name" required maxlength="120" placeholder="Weather reply"></label>
+        <div class="row">
+          <label>Scope<select id="scope"><option value="*">All endpoints</option><option value="chat">OpenAI Chat</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
+          <label>Match<select id="match-type"><option value="all">Every request</option><option value="contains">Contains</option><option value="regex">Regex</option></select></label>
+        </div>
+        <label id="match-wrap">Text<input id="match-value" placeholder="weather"></label>
+        <label>Reply<select id="reply-type"><option value="text">Text</option><option value="json">JSON text</option><option value="tool">Tool call</option><option value="error">Error</option></select></label>
+        <label id="content-wrap">Content<textarea id="content" rows="5" placeholder="The weather is sunny."></textarea></label>
+        <div id="tool-wrap" class="hidden row">
+          <label>Tool name<input id="tool-name" placeholder="get_weather"></label>
+          <label>Arguments (JSON)<textarea id="arguments" rows="3">{"city":"Shanghai"}</textarea></label>
+        </div>
+        <div id="error-wrap" class="hidden row">
+          <label>Status<input id="error-status" type="number" value="500" min="400" max="599"></label>
+          <label>Error message<input id="error-message" value="Mock error"></label>
+        </div>
+        <div class="form-actions"><button type="submit" class="primary">Save rule</button><button type="button" id="delete-rule" class="danger hidden">Delete</button></div>
+      </form>
+    </section>
+
+    <section class="card playground-card">
+      <div class="section-heading"><div><h2>Playground</h2><p>Try a request without leaving the page.</p></div></div>
+      <div class="row"><label>Endpoint<select id="playground-endpoint"><option value="chat">OpenAI Chat</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label><label>Input<input id="playground-input" value="weather in Shanghai"></label></div>
+      <button id="playground-send" class="secondary">Send test request</button>
+      <pre id="playground-output" class="output">No request yet.</pre>
+    </section>
+
+    <section class="card settings-card">
+      <div class="section-heading"><div><h2>Provider settings</h2><p>Mock first. Forward only when you choose it.</p></div></div>
+      <form id="settings-form">
+        <div class="row">
+          <label>OpenAI mode<select id="openai-mode"><option value="mock-only">Mock only</option><option value="mock-then-proxy">Mock, then proxy</option><option value="proxy-only">Proxy only</option></select></label>
+          <label>OpenAI base URL<input id="openai-base" placeholder="https://api.openai.com"></label>
+        </div>
+        <div class="row">
+          <label>Anthropic mode<select id="anthropic-mode"><option value="mock-only">Mock only</option><option value="mock-then-proxy">Mock, then proxy</option><option value="proxy-only">Proxy only</option></select></label>
+          <label>Anthropic base URL<input id="anthropic-base" placeholder="https://api.anthropic.com"></label>
+        </div>
+        <p id="key-status" class="setting-note">API keys are read from environment variables.</p>
+        <button type="submit" class="secondary">Save provider settings</button>
+      </form>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

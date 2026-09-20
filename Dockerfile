@@ -1,0 +1,25 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    LMMOCK_HOST=0.0.0.0 \
+    LMMOCK_PORT=8000 \
+    LMMOCK_DATA_DIR=/data \
+    LMMOCK_NO_BROWSER=1
+
+WORKDIR /app
+COPY pyproject.toml README.md LICENSE ./
+COPY src ./src
+
+RUN python -m pip install --no-cache-dir . \
+    && useradd --create-home --uid 10001 lmmock \
+    && mkdir -p /data \
+    && chown -R lmmock:lmmock /app /data
+
+USER lmmock
+EXPOSE 8000
+VOLUME ["/data"]
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"
+
+CMD ["lmmock"]

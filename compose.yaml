@@ -1,0 +1,17 @@
+services:
+  lmmock:
+    image: lmmock:local
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      LMMOCK_HOST: 0.0.0.0
+      LMMOCK_PORT: 8000
+      LMMOCK_DATA_DIR: /data
+      LMMOCK_NO_BROWSER: "1"
+    volumes:
+      - lmmock-data:/data
+    init: true
+
+volumes:
+  lmmock-data:
