@@ -25,7 +25,7 @@ def host() -> str:
 
 
 def port() -> int:
-    return int(env_or("LMMOCK_PORT", "8000"))
+    return int(env_or("LMMOCK_PORT", "17321"))
 
 
 def api_key() -> str:

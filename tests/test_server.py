@@ -6,6 +6,7 @@ import pytest
 
 import lmmock.app as app_module
 from lmmock.app import create_app
+from lmmock.config import port
 from lmmock.storage import Store
 
 
@@ -29,6 +30,8 @@ async def test_health_ui_and_default_chat(app):
         assert 'id="language-toggle" class="language-toggle" type="button" aria-label="Switch language">EN' in ui.text
         assert 'id="openai-forward"' in ui.text
         assert 'id="request-dialog"' in ui.text
+        assert 'id="playground-request"' in ui.text
+        assert 'id="playground-output"' in ui.text
         assert 'id="group-select"' in ui.text
         assert 'id="models"' in ui.text
         assert "OpenAI Completions" in ui.text
@@ -254,3 +257,8 @@ def test_existing_database_migrates_to_groups_and_model_list(tmp_path):
     assert settings["models"] == ["old-model"]
     assert settings["default_model"] == "old-model"
     assert settings["forward_openai"] is True
+
+
+def test_default_port_is_uncommon(monkeypatch):
+    monkeypatch.delenv("LMMOCK_PORT", raising=False)
+    assert port() == 17321

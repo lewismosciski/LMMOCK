@@ -122,6 +122,11 @@ textarea { resize: vertical; line-height: 1.5; font-family: ui-monospace, SFMono
 .playground-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 #playground-meta { color: var(--muted); font: 10px ui-monospace, monospace; }
 .output { min-height: 300px; max-height: 560px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: #b9dfd3; background: #070c13; border: 1px solid #222f40; border-radius: 10px; padding: 18px; margin: 13px 0 0; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.playground-io { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.playground-io section { min-width: 0; }
+.playground-io h3 { color: #aab6c6; font-size: 11px; margin: 0 0 8px; }
+.playground-io .output { height: 360px; margin: 0; }
+#playground-request { color: #bcd7fb; }
 
 .requests { display: grid; gap: 7px; max-height: 360px; overflow: auto; padding-right: 2px; }
 .request { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 8px 10px; align-items: center; padding: 11px; border: 1px solid #26354a; border-radius: 9px; background: #111a27; color: inherit; text-align: left; cursor: pointer; transition: border-color .14s, background .14s; }
@@ -192,6 +197,8 @@ textarea { resize: vertical; line-height: 1.5; font-family: ui-monospace, SFMono
   .provider-row { gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
   .settings-panel form { padding: 17px; }
   .template-grid, .detail-grid { grid-template-columns: 1fr; }
+  .playground-io { grid-template-columns: 1fr; }
+  .playground-io .output { height: 300px; }
   .detail-grid pre { height: 34vh; }
   .group-bar { grid-template-columns: 1fr auto; }
   .group-bar label { grid-column: 1 / -1; }

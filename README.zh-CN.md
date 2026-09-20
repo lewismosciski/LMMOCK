@@ -32,11 +32,11 @@ python3 run.py                  # Windows: py run.py
 或使用 Docker：
 
 ```bash
-docker run --rm -p 127.0.0.1:8000:8000 \
+docker run --rm -p 127.0.0.1:17321:17321 \
   -v lmmock-data:/data ghcr.io/lewismosciski/lmmock:latest
 ```
 
-打开 [http://127.0.0.1:8000](http://127.0.0.1:8000)。Linux、macOS 与 Windows 独立程序可在 [Releases 页面](https://github.com/lewismosciski/LMMOCK/releases)下载。
+打开 [http://127.0.0.1:17321](http://127.0.0.1:17321)。Linux、macOS 与 Windows 独立程序可在 [Releases 页面](https://github.com/lewismosciski/LMMOCK/releases)下载。
 
 ## 模型、行为组与规则
 
@@ -62,7 +62,7 @@ docker run --rm -p 127.0.0.1:8000:8000 \
 查看全部已配置模型：
 
 ```bash
-curl http://127.0.0.1:8000/v1/models
+curl http://127.0.0.1:17321/v1/models
 ```
 
 ## SDK 示例
@@ -70,7 +70,7 @@ curl http://127.0.0.1:8000/v1/models
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="mock")
+client = OpenAI(base_url="http://127.0.0.1:17321/v1", api_key="mock")
 
 client.completions.create(model="mock-model", prompt="hello")
 client.chat.completions.create(
@@ -84,7 +84,7 @@ client.models.list()
 ```python
 from anthropic import Anthropic
 
-client = Anthropic(base_url="http://127.0.0.1:8000", api_key="mock")
+client = Anthropic(base_url="http://127.0.0.1:17321", api_key="mock")
 client.messages.create(
     model="mock-model",
     max_tokens=128,
@@ -101,7 +101,7 @@ LMMock 提供 Anthropic Messages 和 Models 兼容接口。使用密钥启动 LM
 export LMMOCK_API_KEY="local-test-key"
 python3 run.py
 
-export ANTHROPIC_BASE_URL="http://127.0.0.1:8000"
+export ANTHROPIC_BASE_URL="http://127.0.0.1:17321"
 export ANTHROPIC_AUTH_TOKEN="$LMMOCK_API_KEY"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
 claude
@@ -119,7 +119,7 @@ model_provider = "lmmock"
 
 [model_providers.lmmock]
 name = "LMMock"
-base_url = "http://127.0.0.1:8000/v1"
+base_url = "http://127.0.0.1:17321/v1"
 env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```

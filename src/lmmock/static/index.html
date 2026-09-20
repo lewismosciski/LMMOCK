@@ -27,11 +27,11 @@
         <p class="hero-copy" data-i18n="heroCopy">Create deterministic replies for OpenAI and Anthropic clients, then test the same application code without a model call.</p>
       </div>
       <div class="endpoint-list" aria-label="SDK base URLs">
-        <button class="endpoint" data-copy="http://127.0.0.1:8000/v1" title="Copy OpenAI base URL">
-          <span>OpenAI</span><code>127.0.0.1:8000/v1</code><b data-i18n="copy">Copy</b>
+        <button class="endpoint" data-copy="http://127.0.0.1:17321/v1" title="Copy OpenAI base URL">
+          <span>OpenAI</span><code>127.0.0.1:17321/v1</code><b data-i18n="copy">Copy</b>
         </button>
-        <button class="endpoint" data-copy="http://127.0.0.1:8000" title="Copy Anthropic base URL">
-          <span>Anthropic</span><code>127.0.0.1:8000</code><b data-i18n="copy">Copy</b>
+        <button class="endpoint" data-copy="http://127.0.0.1:17321" title="Copy Anthropic base URL">
+          <span>Anthropic</span><code>127.0.0.1:17321</code><b data-i18n="copy">Copy</b>
         </button>
       </div>
     </section>
@@ -98,7 +98,10 @@
           <label><span data-i18n="input">Input</span><textarea id="playground-input" rows="3">weather in Shanghai</textarea></label>
         </div>
         <div class="playground-actions"><button id="playground-send" class="button secondary" data-i18n="sendRequest">Send request</button><span id="playground-meta"></span></div>
-        <pre id="playground-output" class="output" data-i18n="noRequestYet">No request yet.</pre>
+        <div class="playground-io">
+          <section><h3 data-i18n="requestPreview">Request</h3><pre id="playground-request" class="output"></pre></section>
+          <section><h3 data-i18n="responsePreview">Response</h3><pre id="playground-output" class="output">No request yet.</pre></section>
+        </div>
       </section>
 
       <section class="panel activity-panel">

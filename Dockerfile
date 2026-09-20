@@ -8,7 +8,7 @@ LABEL org.opencontainers.image.title="LMMock" \
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     LMMOCK_HOST=0.0.0.0 \
-    LMMOCK_PORT=8000 \
+    LMMOCK_PORT=17321 \
     LMMOCK_DATA_DIR=/data \
     LMMOCK_NO_BROWSER=1
 
@@ -22,9 +22,9 @@ RUN python -m pip install --no-cache-dir . \
     && chown -R lmmock:lmmock /app /data
 
 USER lmmock
-EXPOSE 8000
+EXPOSE 17321
 VOLUME ["/data"]
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:17321/healthz')"
 
 CMD ["lmmock"]

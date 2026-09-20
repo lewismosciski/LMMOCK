@@ -32,11 +32,11 @@ python3 run.py                  # Windows: py run.py
 Or use Docker:
 
 ```bash
-docker run --rm -p 127.0.0.1:8000:8000 \
+docker run --rm -p 127.0.0.1:17321:17321 \
   -v lmmock-data:/data ghcr.io/lewismosciski/lmmock:latest
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Standalone Linux, macOS, and Windows builds are on the [Releases page](https://github.com/lewismosciski/LMMOCK/releases).
+Open [http://127.0.0.1:17321](http://127.0.0.1:17321). Standalone Linux, macOS, and Windows builds are on the [Releases page](https://github.com/lewismosciski/LMMOCK/releases).
 
 ## Models, behavior groups, and rules
 
@@ -62,7 +62,7 @@ The active group is used by default. Select another group per request with `x-lm
 List every configured model:
 
 ```bash
-curl http://127.0.0.1:8000/v1/models
+curl http://127.0.0.1:17321/v1/models
 ```
 
 ## SDK examples
@@ -70,7 +70,7 @@ curl http://127.0.0.1:8000/v1/models
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="mock")
+client = OpenAI(base_url="http://127.0.0.1:17321/v1", api_key="mock")
 
 client.completions.create(model="mock-model", prompt="hello")
 client.chat.completions.create(
@@ -84,7 +84,7 @@ client.models.list()
 ```python
 from anthropic import Anthropic
 
-client = Anthropic(base_url="http://127.0.0.1:8000", api_key="mock")
+client = Anthropic(base_url="http://127.0.0.1:17321", api_key="mock")
 client.messages.create(
     model="mock-model",
     max_tokens=128,
@@ -101,7 +101,7 @@ LMMock exposes Anthropic-format Messages and Models APIs. Start LMMock with a ke
 export LMMOCK_API_KEY="local-test-key"
 python3 run.py
 
-export ANTHROPIC_BASE_URL="http://127.0.0.1:8000"
+export ANTHROPIC_BASE_URL="http://127.0.0.1:17321"
 export ANTHROPIC_AUTH_TOKEN="$LMMOCK_API_KEY"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
 claude
@@ -119,7 +119,7 @@ model_provider = "lmmock"
 
 [model_providers.lmmock]
 name = "LMMock"
-base_url = "http://127.0.0.1:8000/v1"
+base_url = "http://127.0.0.1:17321/v1"
 env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```
