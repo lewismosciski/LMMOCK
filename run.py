@@ -50,7 +50,7 @@ def main() -> int:
     if not interpreter.exists():
         print(f"Creating {VENV} ...")
         venv.EnvBuilder(with_pip=True, clear=False).create(VENV)
-    if not can_import(interpreter):
+    if not can_import(interpreter, "lmmock.cli"):
         if has_pip(interpreter):
             print("Installing the checkout into the local environment ...")
             subprocess.check_call([str(interpreter), "-m", "pip", "install", "-e", str(ROOT)])
