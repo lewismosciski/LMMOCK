@@ -47,6 +47,8 @@ Open [http://127.0.0.1:17321](http://127.0.0.1:17321). Standalone Linux, macOS, 
 
 The active group is used by default. Select another group per request with `x-lmmock-group: happy-path` or `x-lmmock-group: 2`.
 
+New workspaces include an editable `foolAI` example. A Chinese question such as `你吃饭了吗？` becomes the deterministic reply `我吃饭了！`. The same example is also available in the template list.
+
 ## Supported APIs
 
 | Provider | Endpoint | JSON | Streaming | Tool calls |

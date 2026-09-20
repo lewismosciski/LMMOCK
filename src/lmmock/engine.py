@@ -65,10 +65,24 @@ def request_from(provider: str, operation: str, body: dict[str, Any]) -> Semanti
     return SemanticRequest(provider, operation, str(body.get("model", "mock-model")), text, body, bool(body.get("stream")))
 
 
+def _fool_ai(value: str) -> str:
+    statement = re.sub(r"[?？]+[\"'”’]?\s*$", "", value.strip())
+    statement = re.sub(r"[吗么嘛呢]+\s*$", "", statement)
+    statement = statement.replace("你们", "我们").replace("您", "我").replace("你", "我")
+    return f"{statement}！"
+
+
 def _template(value: Any, variables: dict[str, str]) -> Any:
     if not isinstance(value, str):
         return value
-    return re.sub(r"\$\{([A-Za-z0-9_.-]+)\}", lambda match: variables.get(match.group(1), match.group(0)), value)
+
+    def replace(match: re.Match[str]) -> str:
+        result = variables.get(match.group(1), match.group(0))
+        if match.group(2) == "foolAI":
+            return _fool_ai(result)
+        return result
+
+    return re.sub(r"\$\{([A-Za-z0-9_.-]+)(?:\|([A-Za-z0-9_.-]+))?\}", replace, value)
 
 
 def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict[str, Any] | None, SemanticReply | None]:

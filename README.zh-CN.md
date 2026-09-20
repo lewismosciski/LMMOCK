@@ -47,6 +47,8 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 
 请求默认使用网页中激活的行为组。也可以通过 `x-lmmock-group: happy-path` 或 `x-lmmock-group: 2` 为单次请求指定行为组。
 
+新工作区的默认行为组包含一条可编辑的 `foolAI` 示例规则，例如把 `你吃饭了吗？` 稳定回复为 `我吃饭了！`；也可以从模板列表再次创建它。
+
 ## 支持的 API
 
 | Provider | Endpoint | JSON | 流式响应 | 工具调用 |

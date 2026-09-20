@@ -20,6 +20,18 @@ DEFAULT_RULE = {
     "delay_ms": 0,
 }
 
+FOOL_AI_RULE = {
+    "name": "foolAI",
+    "enabled": True,
+    "priority": 100,
+    "scopes": ["*"],
+    "match_type": "regex",
+    "match_value": r"(?:^|\n)(?:user:\s*)?(?P<question>[^\n]+?)(?:[?？]+|[吗么嘛呢])(?:[\"'”’])?\s*$",
+    "reply_type": "text",
+    "reply": {"content": "${question|foolAI}"},
+    "delay_ms": 0,
+}
+
 DEFAULT_GROUP = {
     "name": "Default",
     "description": "The default behavior for requests without an explicit group.",
@@ -80,6 +92,14 @@ class Store:
             conn.execute("UPDATE rules SET group_id=? WHERE group_id IS NULL", (default_group_id,))
             if conn.execute("SELECT 1 FROM rules LIMIT 1").fetchone() is None:
                 self.create_rule({**DEFAULT_RULE, "group_id": default_group_id}, conn=conn)
+            seeded = conn.execute("SELECT 1 FROM settings WHERE key='seed_fool_ai_v1'").fetchone()
+            if seeded is None:
+                exists = conn.execute("SELECT 1 FROM rules WHERE name=? LIMIT 1", (FOOL_AI_RULE["name"],)).fetchone()
+                if exists is None:
+                    self.create_rule({**FOOL_AI_RULE, "group_id": default_group_id}, conn=conn)
+                conn.execute(
+                    "INSERT INTO settings(key,value) VALUES ('seed_fool_ai_v1', 'true')"
+                )
 
     @staticmethod
     def _now() -> str:

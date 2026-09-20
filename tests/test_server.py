@@ -63,6 +63,51 @@ async def test_rule_matches_and_templates_across_protocols(app):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "body", "extract"),
+    [
+        (
+            "/v1/chat/completions",
+            {"model": "mock-model", "messages": [{"role": "user", "content": "你吃饭了吗？"}]},
+            lambda data: data["choices"][0]["message"]["content"],
+        ),
+        (
+            "/v1/completions",
+            {"model": "mock-model", "prompt": "你吃饭了吗?"},
+            lambda data: data["choices"][0]["text"],
+        ),
+        (
+            "/v1/responses",
+            {"model": "mock-model", "input": "你吃饭了吗"},
+            lambda data: data["output_text"],
+        ),
+        (
+            "/v1/messages",
+            {"model": "mock-model", "max_tokens": 32, "messages": [{"role": "user", "content": "你吃饭了呢？"}]},
+            lambda data: data["content"][0]["text"],
+        ),
+    ],
+)
+async def test_default_fool_ai_rule_across_protocols(app, path, body, extract):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(path, json=body)
+    assert response.status_code == 200
+    assert extract(response.json()) == "我吃饭了！"
+
+
+@pytest.mark.asyncio
+async def test_default_fool_ai_rule_does_not_match_statements(app):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/v1/chat/completions", json={
+            "model": "mock-model",
+            "messages": [{"role": "user", "content": "你吃饭了。"}],
+        })
+        rules = (await client.get("/__lmmock/api/rules")).json()
+    assert response.json()["choices"][0]["message"]["content"] == "LMMock is running."
+    assert [rule["name"] for rule in rules] == ["foolAI", "Default reply"]
+
+
+@pytest.mark.asyncio
 async def test_tool_and_stream_shapes(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         await client.post("/__lmmock/api/rules", json={
@@ -105,9 +150,9 @@ async def test_mock_api_key_is_visible_and_persisted(app):
 async def test_no_matching_rule_returns_mock_fallback(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         rules = (await client.get("/__lmmock/api/rules")).json()
-        default_rule = rules[0]
-        default_rule["enabled"] = False
-        await client.put(f"/__lmmock/api/rules/{default_rule['id']}", json=default_rule)
+        for rule in rules:
+            rule["enabled"] = False
+            await client.put(f"/__lmmock/api/rules/{rule['id']}", json=rule)
         response = await client.post("/v1/messages", json={
             "model": "mock-model",
             "max_tokens": 32,
@@ -180,6 +225,8 @@ async def test_api_key_protects_only_model_apis(tmp_path):
         assert (await client.get("/")).status_code == 200
         assert (await client.get("/healthz")).status_code == 200
         assert (await client.get("/v1/models")).status_code == 401
+        assert (await client.get("/v1/models", headers={"authorization": "Bearer wrong"})).status_code == 401
+        assert (await client.get("/v1/models", headers={"x-api-key": "wrong"})).status_code == 401
         settings = await client.get("/__lmmock/api/settings")
         assert settings.status_code == 200
         bearer = await client.get("/v1/models", headers={"authorization": "Bearer secret-key"})
@@ -222,6 +269,7 @@ def test_existing_database_migrates_to_groups_and_model_list(tmp_path):
     settings = store.get_settings()
     assert rules[0]["name"] == "Existing"
     assert rules[0]["group_id"] == store.list_groups()[0]["id"]
+    assert [rule["name"] for rule in rules].count("foolAI") == 1
     assert settings["models"] == ["old-model"]
     assert settings["default_model"] == "old-model"
     assert settings["api_key"] == ""
