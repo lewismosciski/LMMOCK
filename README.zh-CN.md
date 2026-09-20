@@ -40,12 +40,11 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 
 ## 模型、行为组与规则
 
-- **模型**：应用可以请求的模型名称，可以添加 `gpt-5-mock`、`claude-mock` 等自定义名称并选择默认模型。
-- **接口**：可以在配置中分别启用或关闭。
-- **行为组**：隔离不同规则集合，例如 `happy-path`、`tool-calls`、`failures`。
+- **模型**：保留应用已经使用的名称。每个模型独立选择 OpenAI 兼容或 Anthropic 接口、直接显示的 Mock API Key，以及一个或多个行为组。
+- **行为组**：隔离可复用的规则集合，例如 `happy-path`、`tool-calls`、`failures`；一个模型可以组合多个组。
 - **规则**：归属于一个行为组，可以限定精确模型名或 `gpt-*` 这样的通配模式，并匹配全部请求、包含文本或正则表达式。
 
-请求默认使用网页中激活的行为组。也可以通过 `x-lmmock-group: happy-path` 或 `x-lmmock-group: 2` 为单次请求指定行为组。
+请求默认按优先级匹配该模型绑定的全部行为组。也可以通过 `x-lmmock-group: happy-path` 或数字 ID，将单次请求限定到其中一个已绑定的行为组。
 
 新工作区的默认行为组包含一条可编辑的 `foolAI` 示例规则，例如把 `你吃饭了吗？` 稳定回复为 `我吃饭了！`；也可以从模板列表再次创建它。
 
@@ -61,10 +60,11 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 | Anthropic | `POST /anthropic/v1/messages/count_tokens` | ✓ | — | — |
 | Anthropic | `GET /anthropic/v1/models` | ✓ | — | — |
 
-查看全部已配置模型：
+分别查看两个接口已配置的模型：
 
 ```bash
 curl http://127.0.0.1:17321/openai/v1/models
+curl http://127.0.0.1:17321/anthropic/v1/models
 ```
 
 ## SDK 示例
@@ -76,7 +76,7 @@ client = OpenAI(base_url="http://127.0.0.1:17321/openai/v1", api_key="mock")
 
 client.completions.create(model="mock-model", prompt="hello")
 client.chat.completions.create(
-    model="mock-model",
+    model="mock-claude",
     messages=[{"role": "user", "content": "hello"}],
 )
 client.responses.create(model="mock-model", input="hello")
@@ -97,7 +97,7 @@ client.models.list()
 
 ## 在 Claude Code 中使用
 
-LMMock 提供 Anthropic Messages 和 Models 兼容接口。先在网页 Configuration 中把可选的 Mock API Key 设为 `local-test-key`，再把 Claude Code 指向本地服务，开启 Gateway 模型发现，然后在 `/model` 中选择 `mock-model`：
+LMMock 提供 Anthropic Messages 和 Models 兼容接口。先配置一个名为 `mock-claude` 的 Anthropic 模型，并将它的 API Key 设为 `local-test-key`；再把 Claude Code 指向本地服务，开启 Gateway 模型发现，然后在 `/model` 中选择 `mock-claude`：
 
 ```bash
 python3 run.py
@@ -125,7 +125,7 @@ env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```
 
-先在网页 Configuration 中把可选的 Mock API Key 设为 `local-test-key`。下面的环境变量由 Codex 读取，因为 `env_key` 指向它；LMMock 的值来自网页配置：
+先在 Configuration 中把 `mock-model` 这一行的 API Key 设为 `local-test-key`。下面的环境变量由 Codex 读取，因为 `env_key` 指向它；LMMock 会和该模型直接显示的 Key 比较：
 
 ```bash
 export LMMOCK_API_KEY="local-test-key"
@@ -142,7 +142,7 @@ Codex 的 Provider 设置必须放在用户级配置中，而不是项目本地�
 - OpenAI、DeepSeek、GLM 以及其他 OpenAI 兼容客户端：`http://127.0.0.1:17321/openai/v1`
 - Claude 或 Anthropic 客户端：`http://127.0.0.1:17321/anthropic`
 
-在 Configuration 中加入应用现有的全部模型名，例如 `gpt-4o`、`deepseek-chat`、`claude-3-7-sonnet` 和 `glm-4-plus`。然后在每条规则的“适用模型”中填写精确名称，或填写 `gpt-*, o3-*` 这样的逗号分隔通配模式。如果应用中的不同后端已经填写了不同的占位 Key，可以将 Mock API Key 留空，此时 LMMock 不校验这些 Key。
+在 Configuration 中为应用现有的每个模型建立一行，例如 `gpt-4o`、`deepseek-chat`、`claude-3-7-sonnet` 和 `glm-4-plus`。分别选择接口格式、填写该客户端已经使用的 Key（留空则接受任意 Key），并勾选一个或多个行为组。LMMock 会按优先级合并这些组中的规则；规则的“适用模型”还可以用精确名称或 `gpt-*, o3-*` 进一步筛选。
 
 ## 网络访问与 API Key
 
@@ -152,7 +152,7 @@ Codex 的 Provider 设置必须放在用户级配置中，而不是项目本地�
 python3 run.py --host 0.0.0.0
 ```
 
-然后打开 Configuration，按需设置 Mock API Key。客户端可以通过 `Authorization: Bearer ...` 或 `x-api-key: ...` 发送密钥。该值会直接显示在网页中，并保存在本地 SQLite 数据库；它只保护模型接口，管理页面和管理 API 始终开放。暴露服务前请阅读 [SECURITY.md](SECURITY.md)。
+然后打开 Configuration，按需为每个模型设置不同的 Mock API Key。Key 会直接显示在网页中，并保存在本地 SQLite 数据库；它保护该模型的生成与 Token 计数请求，模型列表、管理页面和管理 API 始终开放。暴露服务前请阅读 [SECURITY.md](SECURITY.md)。
 
 ## 参与贡献
 

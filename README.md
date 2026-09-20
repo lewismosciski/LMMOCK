@@ -40,12 +40,11 @@ Open [http://127.0.0.1:17321](http://127.0.0.1:17321). Standalone Linux, macOS, 
 
 ## Models, behavior groups, and rules
 
-- **Models** are the names your application is allowed to request. Add real-looking names such as `gpt-5-mock` or `claude-mock` and choose a default.
-- **Interfaces** can be enabled independently in Configuration.
-- **Behavior groups** isolate sets of rules, such as `happy-path`, `tool-calls`, and `failures`.
+- **Models** keep the names already used by your application. Each model independently selects the OpenAI-compatible or Anthropic interface, its visible Mock API key, and one or more behavior groups.
+- **Behavior groups** isolate reusable sets of rules, such as `happy-path`, `tool-calls`, and `failures`. A model may combine several groups.
 - **Rules** belong to one group, can target exact model names or glob patterns such as `gpt-*`, and match every request, contained text, or a regular expression.
 
-The active group is used by default. Select another group per request with `x-lmmock-group: happy-path` or `x-lmmock-group: 2`.
+Rules from all groups assigned to the requested model participate by priority. To restrict one request to a single assigned group, send `x-lmmock-group: happy-path` or its numeric group ID.
 
 New workspaces include an editable `foolAI` example. A Chinese question such as `你吃饭了吗？` becomes the deterministic reply `我吃饭了！`. The same example is also available in the template list.
 
@@ -61,10 +60,11 @@ New workspaces include an editable `foolAI` example. A Chinese question such as 
 | Anthropic | `POST /anthropic/v1/messages/count_tokens` | ✓ | — | — |
 | Anthropic | `GET /anthropic/v1/models` | ✓ | — | — |
 
-List every configured model:
+List configured models for each interface:
 
 ```bash
 curl http://127.0.0.1:17321/openai/v1/models
+curl http://127.0.0.1:17321/anthropic/v1/models
 ```
 
 ## SDK examples
@@ -76,7 +76,7 @@ client = OpenAI(base_url="http://127.0.0.1:17321/openai/v1", api_key="mock")
 
 client.completions.create(model="mock-model", prompt="hello")
 client.chat.completions.create(
-    model="mock-model",
+    model="mock-claude",
     messages=[{"role": "user", "content": "hello"}],
 )
 client.responses.create(model="mock-model", input="hello")
@@ -97,7 +97,7 @@ client.models.list()
 
 ## Use with Claude Code
 
-LMMock exposes Anthropic-format Messages and Models APIs. Set the optional Mock API key to `local-test-key` in the web Configuration, point Claude Code to LMMock, enable gateway model discovery, then choose `mock-model` from `/model`:
+LMMock exposes Anthropic-format Messages and Models APIs. Configure an Anthropic model named `mock-claude` with API key `local-test-key`, point Claude Code to LMMock, enable gateway model discovery, then choose `mock-claude` from `/model`:
 
 ```bash
 python3 run.py
@@ -125,7 +125,7 @@ env_key = "LMMOCK_API_KEY"
 wire_api = "responses"
 ```
 
-Set the optional Mock API key to `local-test-key` in the web Configuration. The environment variable below is read by Codex because `env_key` points to it; LMMock reads its value from the web UI:
+Set the `mock-model` row's API key to `local-test-key` in Configuration. The environment variable below is read by Codex because `env_key` points to it; LMMock checks it against that model's visible key:
 
 ```bash
 export LMMOCK_API_KEY="local-test-key"
@@ -142,7 +142,7 @@ For an existing multi-agent application, keep every original model name and chan
 - OpenAI, DeepSeek, GLM, and other OpenAI-compatible clients: `http://127.0.0.1:17321/openai/v1`
 - Claude or Anthropic clients: `http://127.0.0.1:17321/anthropic`
 
-Add all existing names—such as `gpt-4o`, `deepseek-chat`, `claude-3-7-sonnet`, and `glm-4-plus`—to Configuration. Then set each rule's Models field to an exact name or a comma-separated glob list such as `gpt-*, o3-*`. Leave the Mock API key blank if the application already sends different placeholder keys; LMMock will accept them without validation.
+Add one Configuration row for every existing name—such as `gpt-4o`, `deepseek-chat`, `claude-3-7-sonnet`, and `glm-4-plus`. Select its interface, enter the key already used by that client (or leave it blank to accept any key), and check one or more behavior groups. Rules from those groups are combined by priority; their Models field can further narrow a rule with an exact name or comma-separated globs such as `gpt-*, o3-*`.
 
 ## Network access and API keys
 
@@ -152,7 +152,7 @@ Localhost is the safe default. To share LMMock on a trusted LAN, bind to all int
 python3 run.py --host 0.0.0.0
 ```
 
-Then open Configuration and optionally set a Mock API key. Clients may send it as `Authorization: Bearer ...` or `x-api-key: ...`. The key is intentionally visible in the web UI and stored in the local SQLite database. It protects model endpoints only; the management UI and management API remain open. Read [SECURITY.md](SECURITY.md) before exposing the server.
+Then open Configuration and optionally set a different Mock API key for each model. Keys are intentionally visible in the web UI and stored in the local SQLite database. They protect generation and token-count requests for their model; model discovery, the management UI, and management API remain open. Read [SECURITY.md](SECURITY.md) before exposing the server.
 
 ## Contributing
 

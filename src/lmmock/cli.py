@@ -50,6 +50,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"OpenAI-compatible base URL: {address}/openai/v1")
     print(f"Anthropic base URL: {address}/anthropic")
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
-        print("Warning: LMMock is listening beyond localhost. Configure the optional Mock API key in the web UI.")
+        print("Warning: LMMock is listening beyond localhost. Configure optional per-model API keys in the web UI.")
     uvicorn.run(create_app(Path(args.data_dir)), host=args.host, port=args.port, log_level="info")
     return 0

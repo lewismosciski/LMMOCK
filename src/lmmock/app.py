@@ -199,22 +199,6 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-    @app.middleware("http")
-    async def authenticate(request: Request, call_next: Any) -> Response:
-        required_key = str(store.get_settings().get("api_key", ""))
-        protected = request.url.path.startswith(("/openai/v1/", "/anthropic/v1/"))
-        if required_key and protected:
-            authorization = request.headers.get("authorization", "")
-            bearer = authorization[7:] if authorization.lower().startswith("bearer ") else ""
-            supplied = bearer or request.headers.get("x-api-key", "")
-            if not supplied or not secrets.compare_digest(supplied, required_key):
-                return JSONResponse(
-                    {"error": {"message": "A valid LMMock API key is required.", "type": "authentication_error"}},
-                    status_code=401,
-                    headers={"www-authenticate": "Bearer"},
-                )
-        return await call_next(request)
-
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
         return FileResponse(static_dir / "index.html")
@@ -222,6 +206,24 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     @app.get("/healthz")
     async def healthz() -> dict[str, Any]:
         return {"ok": True, "name": "lmmock", "version": __version__, "mode": "mock-first"}
+
+    def configured_model(settings: dict[str, Any], model: str, provider: str) -> dict[str, Any] | None:
+        return next(
+            (config for config in settings["model_configs"] if config["name"] == model and config["protocol"] == provider),
+            None,
+        )
+
+    def authentication_error(provider: str, request: Request, config: dict[str, Any]) -> Response | None:
+        required_key = config["api_key"]
+        if not required_key:
+            return None
+        authorization = request.headers.get("authorization", "")
+        bearer = authorization[7:] if authorization.lower().startswith("bearer ") else ""
+        supplied = bearer or request.headers.get("x-api-key", "")
+        if supplied and secrets.compare_digest(supplied, required_key):
+            return None
+        error = SemanticReply("error", text=f"A valid API key is required for model '{config['name']}'.", status_code=401, error_type="authentication_error")
+        return _error(provider, error, _id("req"))
 
     async def handle(provider: str, operation: str, request: Request) -> Response:
         raw = await request.body()
@@ -232,20 +234,24 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         if not isinstance(body, dict):
             return JSONResponse({"error": {"message": "Request body must be an object", "type": "invalid_request_error"}}, status_code=400)
         settings = store.get_settings()
-        if operation not in settings["enabled_operations"]:
-            return JSONResponse({"error": {"message": f"The {operation} endpoint is disabled.", "type": "not_found_error"}}, status_code=404)
         body = dict(body)
-        body.setdefault("model", settings["default_model"])
+        provider_default = next((config["name"] for config in settings["model_configs"] if config["protocol"] == provider), settings["default_model"])
+        body.setdefault("model", provider_default)
         semantic = request_from(provider, operation, body)
-        if semantic.model not in settings["models"]:
-            error = SemanticReply("error", text=f"Model '{semantic.model}' is not configured in LMMock.", status_code=404, error_type="model_not_found")
+        config = configured_model(settings, semantic.model, provider)
+        if config is None:
+            error = SemanticReply("error", text=f"Model '{semantic.model}' is not configured for the {provider} interface.", status_code=404, error_type="model_not_found")
             return _error(provider, error, _id("req"))
+        auth_error = authentication_error(provider, request, config)
+        if auth_error:
+            return auth_error
         groups = store.list_groups()
         requested_group = request.headers.get("x-lmmock-group") or body.get("lmmock_group")
         group = next((item for item in groups if str(item["id"]) == str(requested_group) or item["name"] == requested_group), None) if requested_group else None
-        if requested_group and group is None:
-            return JSONResponse({"error": {"message": f"Behavior group '{requested_group}' was not found.", "type": "invalid_request_error"}}, status_code=400)
-        group = group or next((item for item in groups if item["id"] == settings["active_group_id"]), groups[0])
+        if requested_group and (group is None or group["id"] not in config["group_ids"]):
+            return JSONResponse({"error": {"message": f"Behavior group '{requested_group}' is not assigned to model '{semantic.model}'.", "type": "invalid_request_error"}}, status_code=400)
+        selected_groups = [group] if group else [item for item in groups if item["id"] in config["group_ids"]]
+        group_label = ", ".join(item["name"] for item in selected_groups)
         started = time.perf_counter()
 
         def record(request_id: str, rule_name: str | None, status: int, response_body: Any) -> None:
@@ -254,7 +260,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
                 "provider": provider,
                 "operation": operation,
                 "model": semantic.model,
-                "group": group["name"],
+                "group": group_label,
                 "rule": rule_name,
                 "status": status,
                 "duration_ms": round((time.perf_counter() - started) * 1000, 2),
@@ -263,7 +269,9 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
                 "response": _snapshot(response_body),
             })
 
-        rule, reply = resolve(store.list_rules(group["id"]), semantic)
+        rules = [rule for selected_group in selected_groups for rule in store.list_rules(selected_group["id"])]
+        rules.sort(key=lambda item: (item["priority"], item["id"]))
+        rule, reply = resolve(rules, semantic)
         if reply is None:
             reply = SemanticReply("text", text="No rule matched.")
         if rule and rule.get("delay_ms"):
@@ -321,28 +329,31 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         except json.JSONDecodeError:
             return JSONResponse({"type": "error", "error": {"type": "invalid_request_error", "message": "Request body must be JSON"}}, status_code=400)
         settings = store.get_settings()
-        if "messages" not in settings["enabled_operations"]:
-            return JSONResponse({"type": "error", "error": {"type": "not_found_error", "message": "The messages endpoint is disabled."}}, status_code=404)
-        body.setdefault("model", settings["default_model"])
-        if body["model"] not in settings["models"]:
-            return JSONResponse({"type": "error", "error": {"type": "model_not_found", "message": f"Model '{body['model']}' is not configured in LMMock."}}, status_code=404)
+        anthropic_default = next((config["name"] for config in settings["model_configs"] if config["protocol"] == "anthropic"), settings["default_model"])
+        body.setdefault("model", anthropic_default)
+        config = configured_model(settings, str(body["model"]), "anthropic")
+        if config is None:
+            return JSONResponse({"type": "error", "error": {"type": "model_not_found", "message": f"Model '{body['model']}' is not configured for the anthropic interface."}}, status_code=404)
+        auth_error = authentication_error("anthropic", request, config)
+        if auth_error:
+            return auth_error
         semantic = request_from("anthropic", "messages", body)
         return JSONResponse({"input_tokens": max(1, len(semantic.text) // 4)})
 
     @app.get("/openai/v1/models")
     async def openai_models() -> dict[str, Any]:
-        models = store.get_settings()["models"]
+        models = [config["name"] for config in store.get_settings()["model_configs"] if config["protocol"] == "openai"]
         return {"object": "list", "data": [{"id": model, "object": "model", "created": int(time.time()), "owned_by": "lmmock"} for model in models]}
 
     @app.get("/anthropic/v1/models")
     async def anthropic_models() -> dict[str, Any]:
-        models = store.get_settings()["models"]
-        return {"data": [{"type": "model", "id": model, "display_name": model, "created_at": "2025-01-01T00:00:00Z"} for model in models], "has_more": False, "first_id": models[0], "last_id": models[-1]}
+        models = [config["name"] for config in store.get_settings()["model_configs"] if config["protocol"] == "anthropic"]
+        return {"data": [{"type": "model", "id": model, "display_name": model, "created_at": "2025-01-01T00:00:00Z"} for model in models], "has_more": False, "first_id": models[0] if models else None, "last_id": models[-1] if models else None}
 
     @app.get("/__lmmock/api/info")
     async def info() -> dict[str, Any]:
         settings = store.get_settings()
-        return {"name": "LMMock", "version": __version__, "providers": ["openai", "anthropic"], "operations": settings["enabled_operations"], "models": settings["models"], "authentication": bool(settings["api_key"]), "data_dir": str(store.path.parent), "rules": len(store.list_rules()), "groups": len(store.list_groups())}
+        return {"name": "LMMock", "version": __version__, "providers": ["openai", "anthropic"], "operations": ["chat", "completions", "responses", "messages"], "models": settings["models"], "authentication": any(config["api_key"] for config in settings["model_configs"]), "data_dir": str(store.path.parent), "rules": len(store.list_rules()), "groups": len(store.list_groups())}
 
     @app.get("/__lmmock/api/rules")
     async def list_rules(group_id: int | None = None) -> list[dict[str, Any]]:
@@ -411,8 +422,12 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         mapping = {"openai_chat": ("openai", "chat"), "openai_completions": ("openai", "completions"), "openai_responses": ("openai", "responses"), "anthropic_messages": ("anthropic", "messages")}
         provider, operation = mapping.get(protocol, ("openai", "chat"))
         semantic = request_from(provider, operation, data.get("body", {}))
-        group_id = int(data.get("group_id") or store.get_settings()["active_group_id"])
-        rule, reply = resolve(store.list_rules(group_id), semantic)
+        settings = store.get_settings()
+        config = configured_model(settings, semantic.model, provider)
+        group_ids = [int(data["group_id"])] if data.get("group_id") else (config["group_ids"] if config else [])
+        rules = [rule for group_id in group_ids for rule in store.list_rules(group_id)]
+        rules.sort(key=lambda item: (item["priority"], item["id"]))
+        rule, reply = resolve(rules, semantic)
         return {"matched_rule": rule, "semantic_request": {"provider": semantic.provider, "operation": semantic.operation, "model": semantic.model, "text": semantic.text}, "reply": reply.__dict__ if reply else None}
 
     @app.get("/__lmmock/api/settings")

@@ -114,29 +114,22 @@
         <div id="requests" class="requests"></div>
       </section>
 
-      <details class="panel settings-panel" open>
-        <summary><span><span class="kicker" data-i18n="configuration">CONFIGURATION</span><strong data-i18n="modelsInterfacesSecurity">Models, interfaces &amp; API key</strong><small data-i18n="configurationHelp">Control the mock API exposed by LMMock.</small></span><b data-i18n="configure">Configure</b></summary>
+      <section class="panel settings-panel">
+        <div class="panel-heading settings-heading">
+          <div><p class="kicker" data-i18n="configuration">CONFIGURATION</p><h2 data-i18n="modelsInterfacesSecurity">Models, interfaces &amp; API keys</h2><p data-i18n="configurationHelp">Each model owns its interface, key, and behavior groups.</p></div>
+          <button id="add-model" type="button" class="button secondary" data-i18n="addModel">Add model</button>
+        </div>
         <form id="settings-form">
           <section class="settings-section">
-            <div class="settings-section-title"><strong data-i18n="mockSurface">Mock API surface</strong><small data-i18n="mockSurfaceHelp">One model per line. Disabled interfaces return 404.</small></div>
-            <div class="field-grid two">
-              <label><span data-i18n="modelNames">Model names</span><textarea id="models" rows="4" placeholder="mock-model"></textarea></label>
-              <label><span data-i18n="defaultModel">Default model</span><select id="default-model"></select></label>
-            </div>
-            <div class="operation-grid">
-              <label><input id="operation-chat" type="checkbox">OpenAI Chat Completions</label>
-              <label><input id="operation-completions" type="checkbox">OpenAI Completions</label>
-              <label><input id="operation-responses" type="checkbox">OpenAI Responses</label>
-              <label><input id="operation-messages" type="checkbox">Anthropic Messages</label>
-            </div>
+            <div class="settings-section-title"><strong data-i18n="configuredModels">Configured models</strong><small data-i18n="configuredModelsHelp">Keep the names already used by your application. Assign at least one behavior group to each model.</small></div>
+            <div id="model-configs" class="model-configs"></div>
           </section>
-          <section class="settings-section">
-            <div class="settings-section-title"><strong data-i18n="mockApiKey">Mock API key</strong><small data-i18n="mockApiKeyHelp">Optional. Clients must send this value to call model endpoints. It is shown here because LMMock only returns mock data.</small></div>
-            <label><span data-i18n="apiKey">API key</span><input id="mock-api-key" type="text" autocomplete="off" data-i18n-placeholder="apiKeyPlaceholder" placeholder="Leave blank to allow requests without a key"></label>
-          </section>
-          <button type="submit" class="button secondary" data-i18n="saveSettings">Save settings</button>
+          <div class="settings-footer">
+            <label><span data-i18n="defaultModel">Default model</span><select id="default-model"></select></label>
+            <button type="submit" class="button primary" data-i18n="saveSettings">Save settings</button>
+          </div>
         </form>
-      </details>
+      </section>
     </main>
   </div>
 

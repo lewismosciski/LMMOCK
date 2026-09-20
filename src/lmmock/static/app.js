@@ -10,7 +10,7 @@ const messages = {
     localWorkspace: 'local workspace', heroTitle: 'Shape the model response.', heroCopy: 'Create deterministic replies for OpenAI and Anthropic clients, then test the same application code without a model call.', copy: 'Copy', apiKey: 'API key',
     rules: 'Rules', rulesHelp: 'Rules are isolated inside behavior groups.', newRule: 'New rule', behaviorGroup: 'Behavior group', newGroup: 'New group', startTemplate: 'Start from a template', templateHelp: 'Choose one, adjust it, then save.', savedRules: 'Saved rules', editorHelp: 'Match a request and return a fixed result.', enabled: 'Enabled',
     name: 'Name', description: 'Description', namePlaceholder: 'Weather reply', ruleModels: 'Models', modelPatternPlaceholder: '* or gpt-*, deepseek-chat', scope: 'Scope', allEndpoints: 'All endpoints', priority: 'Priority', match: 'Match', everyRequest: 'Every request', contains: 'Contains', regex: 'Regex', text: 'Text', reply: 'Reply', jsonText: 'JSON text', toolCall: 'Tool call', httpError: 'HTTP error', delay: 'Delay (ms)', content: 'Content', captureHelp: 'Regex captures can be inserted as ${city} or ${1}.', toolName: 'Tool name', arguments: 'Arguments (JSON)', status: 'Status', errorMessage: 'Error message', saveRule: 'Save rule', saveGroup: 'Save group', delete: 'Delete',
-    playgroundHelp: 'Send one request through the selected model and behavior group.', endpoint: 'Endpoint', model: 'Model', input: 'Input', sendRequest: 'Send request', requestPreview: 'Request', responsePreview: 'Response', noRequestYet: 'No request yet.', recentRequests: 'Recent requests', recentHelp: 'Select one to inspect its request and response.', clear: 'Clear', configuration: 'CONFIGURATION', modelsInterfacesSecurity: 'Models, interfaces & API key', configurationHelp: 'Control the mock API exposed by LMMock.', configure: 'Configure', mockSurface: 'Mock API surface', mockSurfaceHelp: 'One model per line. Disabled interfaces return 404.', modelNames: 'Model names', defaultModel: 'Default model', mockApiKey: 'Mock API key', mockApiKeyHelp: 'Optional. Clients must send this value to call model endpoints. It is shown here because LMMock only returns mock data.', apiKeyPlaceholder: 'Leave blank to allow requests without a key', saveSettings: 'Save settings', requestDetail: 'REQUEST DETAIL', request: 'Request', response: 'Response',
+    playgroundHelp: 'Send one request through the selected model and its behavior groups.', endpoint: 'Endpoint', model: 'Model', input: 'Input', sendRequest: 'Send request', requestPreview: 'Request', responsePreview: 'Response', noRequestYet: 'No request yet.', recentRequests: 'Recent requests', recentHelp: 'Select one to inspect its request and response.', clear: 'Clear', configuration: 'CONFIGURATION', modelsInterfacesSecurity: 'Models, interfaces & API keys', configurationHelp: 'Each model owns its interface, key, and behavior groups.', configuredModels: 'Configured models', configuredModelsHelp: 'Keep the names already used by your application. Assign at least one behavior group to each model.', addModel: 'Add model', removeModel: 'Remove model', interfaceFormat: 'Interface', behaviorGroups: 'Behavior groups', defaultModel: 'Default model', apiKeyPlaceholder: 'Blank accepts any key', saveSettings: 'Save settings', requestDetail: 'REQUEST DETAIL', request: 'Request', response: 'Response',
     editRule: 'Edit rule', createGroup: 'Create behavior group', editGroup: 'Edit behavior group', noRules: 'No rules in this group yet. Pick a template or create a rule.', noRequests: 'Requests will appear here after your app or the Playground calls LMMock.', noMatch: 'No match', emptyInput: 'Empty input', ruleUpdated: 'Rule updated', ruleCreated: 'Rule created', invalidArguments: 'Tool arguments must be valid JSON', deleteConfirm: 'Delete this rule?', ruleDeleted: 'Rule deleted', groupCreated: 'Behavior group created', groupUpdated: 'Behavior group updated', groupDeleted: 'Behavior group deleted', groupDeleteConfirm: 'Delete this behavior group?', settingsSaved: 'Configuration saved', requestFailed: 'request failed', listCleared: 'Request list cleared', copied: 'Base URL copied', templateLoaded: 'Template loaded — review it and save the rule.',
     templateSimple: 'Simple text', templateSimpleHelp: 'Reply to a matching phrase.', templateRegex: 'Regex variables', templateRegexHelp: 'Reuse captured text in the reply.', templateFool: 'foolAI', templateFoolHelp: 'Turn a Chinese question into a confident first-person statement.', templateJson: 'JSON result', templateJsonHelp: 'Return structured JSON text.', templateTool: 'Tool call', templateToolHelp: 'Ask the client to call a function.', templateRate: 'Rate limit', templateRateHelp: 'Test provider error handling.', templateSlow: 'Slow reply', templateSlowHelp: 'Test loading and timeout states.'
   },
@@ -18,7 +18,7 @@ const messages = {
     localWorkspace: '本地工作台', heroTitle: '定义你的模型回复。', heroCopy: '为 OpenAI 和 Anthropic 客户端创建稳定可复现的回复，无需调用真实模型即可测试同一套应用代码。', copy: '复制', apiKey: 'API 密钥',
     rules: '规则', rulesHelp: '不同的行为组拥有相互隔离的规则。', newRule: '新建规则', behaviorGroup: '行为组', newGroup: '新建组', startTemplate: '从模板开始', templateHelp: '选择模板，按需修改，然后保存。', savedRules: '已保存规则', editorHelp: '匹配请求并返回固定结果。', enabled: '启用',
     name: '名称', description: '描述', namePlaceholder: '天气回复', ruleModels: '适用模型', modelPatternPlaceholder: '* 或 gpt-*、deepseek-chat', scope: '接口范围', allEndpoints: '全部接口', priority: '优先级', match: '匹配方式', everyRequest: '所有请求', contains: '包含文本', regex: '正则表达式', text: '文本', reply: '回复类型', jsonText: 'JSON 文本', toolCall: '工具调用', httpError: 'HTTP 错误', delay: '延迟（毫秒）', content: '回复内容', captureHelp: '正则捕获内容可通过 ${city} 或 ${1} 插入回复。', toolName: '工具名称', arguments: '参数（JSON）', status: '状态码', errorMessage: '错误信息', saveRule: '保存规则', saveGroup: '保存行为组', delete: '删除',
-    playgroundHelp: '使用选定模型和行为组发送一次真实兼容请求。', endpoint: '接口', model: '模型', input: '输入', sendRequest: '发送请求', requestPreview: '请求', responsePreview: '响应', noRequestYet: '还没有发送请求。', recentRequests: '最近请求', recentHelp: '点击任意请求查看请求体和响应体。', clear: '清空', configuration: '配置', modelsInterfacesSecurity: '模型、接口与 API 密钥', configurationHelp: '配置 LMMock 对外提供的 Mock API。', configure: '配置', mockSurface: 'Mock API 能力', mockSurfaceHelp: '每行一个模型。关闭的接口会返回 404。', modelNames: '模型名称', defaultModel: '默认模型', mockApiKey: 'Mock API 密钥', mockApiKeyHelp: '可选。设置后，客户端调用模型接口时必须发送此值。LMMock 只返回 Mock 数据，因此密钥直接显示在这里。', apiKeyPlaceholder: '留空表示请求无需密钥', saveSettings: '保存配置', requestDetail: '请求详情', request: '请求', response: '响应',
+    playgroundHelp: '使用选定模型及其绑定的行为组发送请求。', endpoint: '接口', model: '模型', input: '输入', sendRequest: '发送请求', requestPreview: '请求', responsePreview: '响应', noRequestYet: '还没有发送请求。', recentRequests: '最近请求', recentHelp: '点击任意请求查看请求体和响应体。', clear: '清空', configuration: '配置', modelsInterfacesSecurity: '模型、接口与 API 密钥', configurationHelp: '每个模型独立拥有接口格式、API Key 和行为组。', configuredModels: '已配置模型', configuredModelsHelp: '保留应用正在使用的模型名，并为每个模型至少绑定一个行为组。', addModel: '添加模型', removeModel: '删除模型', interfaceFormat: '接口格式', behaviorGroups: '行为组', defaultModel: '默认模型', apiKeyPlaceholder: '留空表示接受任意 Key', saveSettings: '保存配置', requestDetail: '请求详情', request: '请求', response: '响应',
     editRule: '编辑规则', createGroup: '新建行为组', editGroup: '编辑行为组', noRules: '这个行为组还没有规则。可以选择模板或新建规则。', noRequests: '你的应用或 Playground 调用 LMMock 后，请求会显示在这里。', noMatch: '未匹配', emptyInput: '空输入', ruleUpdated: '规则已更新', ruleCreated: '规则已创建', invalidArguments: '工具参数必须是有效的 JSON', deleteConfirm: '确定删除这条规则吗？', ruleDeleted: '规则已删除', groupCreated: '行为组已创建', groupUpdated: '行为组已更新', groupDeleted: '行为组已删除', groupDeleteConfirm: '确定删除这个行为组吗？', settingsSaved: '配置已保存', requestFailed: '请求失败', listCleared: '请求列表已清空', copied: '基础 URL 已复制', templateLoaded: '模板已载入，请检查并保存规则。',
     templateSimple: '简单文本', templateSimpleHelp: '命中指定短语后返回文本。', templateRegex: '正则变量', templateRegexHelp: '把捕获的内容复用到回复中。', templateFool: 'foolAI', templateFoolHelp: '把中文疑问句变成自信的第一人称肯定句。', templateJson: 'JSON 结果', templateJsonHelp: '返回结构化 JSON 文本。', templateTool: '工具调用', templateToolHelp: '让客户端调用指定函数。', templateRate: '限流错误', templateRateHelp: '测试应用的错误处理。', templateSlow: '慢速回复', templateSlowHelp: '测试加载和超时状态。'
   },
@@ -40,13 +40,14 @@ function t(key, values = {}) {
   return text;
 }
 
-function authHeaders() {
-  const key = state.settings?.api_key;
-  return key ? { authorization: `Bearer ${key}` } : {};
+function modelHeaders(model) {
+  const config = state.settings?.model_configs.find((item) => item.name === model);
+  if (!config?.api_key) return {};
+  return config.protocol === 'anthropic' ? { 'x-api-key': config.api_key } : { authorization: `Bearer ${config.api_key}` };
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(`/__lmmock/api${path}`, { ...options, headers: { 'content-type': 'application/json', ...authHeaders(), ...(options.headers || {}) } });
+  const response = await fetch(`/__lmmock/api${path}`, { ...options, headers: { 'content-type': 'application/json', ...(options.headers || {}) } });
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
     try {
@@ -128,23 +129,61 @@ function renderRules() {
 
 async function loadRules() { state.rules = await api(`/rules?group_id=${state.activeGroupId}`); renderRules(); }
 
+function readModelConfigs() {
+  return [...document.querySelectorAll('.model-config')].map((card) => ({
+    name: card.querySelector('.model-name').value.trim(),
+    protocol: card.querySelector('.model-protocol').value,
+    api_key: card.querySelector('.model-api-key').value,
+    group_ids: [...card.querySelectorAll('.model-group:checked')].map((input) => Number(input.value)),
+  }));
+}
+
 function syncModelOptions(selected) {
-  const models = $('models').value.split(/\n|,/).map((item) => item.trim()).filter(Boolean);
+  const configs = readModelConfigs();
+  const models = configs.map((config) => config.name).filter(Boolean);
   for (const id of ['default-model', 'playground-model']) {
     const select = $(id); const current = id === 'default-model' ? selected || select.value : select.value || selected;
     select.replaceChildren();
     for (const model of models) { const option = document.createElement('option'); option.value = model; option.textContent = model; option.selected = model === current; select.append(option); }
   }
+  syncPlaygroundProtocol();
+}
+
+function syncPlaygroundProtocol() {
+  const config = readModelConfigs().find((item) => item.name === $('playground-model').value);
+  const anthropic = config?.protocol === 'anthropic';
+  for (const option of $('playground-endpoint').options) option.disabled = anthropic ? option.value !== 'messages' : option.value === 'messages';
+  if ($('playground-endpoint').selectedOptions[0]?.disabled) $('playground-endpoint').value = anthropic ? 'messages' : 'chat';
+  renderPlaygroundRequest();
+}
+
+function addModelConfig(config = {}) {
+  const card = document.createElement('div'); card.className = 'model-config';
+  const field = (key, control) => { const label = document.createElement('label'); const text = document.createElement('span'); text.dataset.i18n = key; text.textContent = t(key); label.append(text, control); return label; };
+  const name = document.createElement('input'); name.className = 'model-name'; name.required = true; name.maxLength = 120; name.value = config.name || '';
+  const protocol = document.createElement('select'); protocol.className = 'model-protocol';
+  for (const [value, label] of [['openai', 'OpenAI-compatible'], ['anthropic', 'Anthropic']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = value === (config.protocol || 'openai'); protocol.append(option); }
+  const key = document.createElement('input'); key.className = 'model-api-key'; key.type = 'text'; key.autocomplete = 'off'; key.value = config.api_key || ''; key.placeholder = t('apiKeyPlaceholder'); key.dataset.i18nPlaceholder = 'apiKeyPlaceholder';
+  const groupsWrap = document.createElement('label'); groupsWrap.className = 'model-groups-wrap'; const groupsTitle = document.createElement('span'); groupsTitle.dataset.i18n = 'behaviorGroups'; groupsTitle.textContent = t('behaviorGroups'); const groups = document.createElement('div'); groups.className = 'model-groups';
+  for (const group of state.groups) { const optionLabel = document.createElement('label'); const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.className = 'model-group'; checkbox.value = group.id; checkbox.checked = (config.group_ids || [state.activeGroupId || state.groups[0]?.id]).includes(group.id); optionLabel.append(checkbox, document.createTextNode(group.name)); groups.append(optionLabel); }
+  groupsWrap.append(groupsTitle, groups);
+  const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'icon-button remove-model'; remove.textContent = '×'; remove.title = t('removeModel');
+  remove.addEventListener('click', () => { card.remove(); syncModelOptions(); });
+  for (const control of [name, protocol, key]) control.addEventListener('input', () => syncModelOptions());
+  card.append(field('model', name), field('interfaceFormat', protocol), field('apiKey', key), groupsWrap, remove);
+  $('model-configs').append(card);
+  syncModelOptions(config.name);
+}
+
+function renderModelConfigs(configs) {
+  $('model-configs').replaceChildren();
+  for (const config of configs) addModelConfig(config);
 }
 
 async function loadSettings() {
   const settings = await api('/settings'); state.settings = settings;
   state.activeGroupId = state.activeGroupId || settings.active_group_id;
-  $('models').value = settings.models.join('\n'); syncModelOptions(settings.default_model); $('default-model').value = settings.default_model;
-  for (const operation of ['chat', 'completions', 'responses', 'messages']) $(`operation-${operation}`).checked = settings.enabled_operations.includes(operation);
-  for (const option of $('playground-endpoint').options) option.disabled = !settings.enabled_operations.includes(option.value);
-  if ($('playground-endpoint').selectedOptions[0]?.disabled) $('playground-endpoint').value = settings.enabled_operations[0];
-  $('mock-api-key').value = settings.api_key || '';
+  renderModelConfigs(settings.model_configs); syncModelOptions(settings.default_model); $('default-model').value = settings.default_model;
 }
 
 function openRequest(request) {
@@ -179,10 +218,10 @@ function buildPlaygroundRequest() {
         ? { model, input }
         : { model, max_tokens: 128, messages: [{ role: 'user', content: input }] };
   const paths = { chat: '/openai/v1/chat/completions', completions: '/openai/v1/completions', responses: '/openai/v1/responses', messages: '/anthropic/v1/messages' };
-  const headers = { 'content-type': 'application/json', 'x-lmmock-group': String(state.activeGroupId || '') };
-  if (state.settings?.api_key) headers.authorization = `Bearer ${state.settings.api_key}`;
-  const group = state.groups.find((item) => item.id === state.activeGroupId);
-  return { path: paths[endpoint], body, preview: { method: 'POST', url: `${location.origin}${paths[endpoint]}`, headers, behavior_group: group?.name || null, body } };
+  const headers = { 'content-type': 'application/json', ...modelHeaders(model) };
+  const config = state.settings?.model_configs.find((item) => item.name === model);
+  const behaviorGroups = state.groups.filter((group) => config?.group_ids.includes(group.id)).map((group) => group.name);
+  return { path: paths[endpoint], body, preview: { method: 'POST', url: `${location.origin}${paths[endpoint]}`, headers, behavior_groups: behaviorGroups, body } };
 }
 
 function renderPlaygroundRequest() {
@@ -191,13 +230,14 @@ function renderPlaygroundRequest() {
 
 async function initialize() {
   try {
-    await loadSettings(); state.groups = await api('/groups');
+    state.groups = await api('/groups'); await loadSettings();
     if (!state.groups.some((group) => group.id === state.activeGroupId)) state.activeGroupId = state.groups[0].id;
     renderGroups(); renderPlaygroundRequest(); await Promise.all([loadRules(), loadRequests()]);
   } catch (error) { toast(error.message); }
 }
 
 $('language-toggle').addEventListener('click', () => { state.language = state.language === 'en' ? 'zh' : 'en'; localStorage.setItem('lmmock-language', state.language); applyLanguage(); loadSettings().catch(() => {}); loadRequests().catch(() => {}); });
+$('add-model').addEventListener('click', () => addModelConfig({ protocol: 'openai', group_ids: [state.activeGroupId] }));
 
 $('group-select').addEventListener('change', async () => {
   state.activeGroupId = Number($('group-select').value); state.activeRuleId = null; renderGroups(); renderPlaygroundRequest(); setForm();
@@ -210,12 +250,12 @@ $('group-form').addEventListener('submit', async (event) => {
   event.preventDefault(); const id = $('group-id').value;
   try {
     const saved = await api(id ? `/groups/${id}` : '/groups', { method: id ? 'PUT' : 'POST', body: JSON.stringify({ name: $('group-name').value, description: $('group-description').value }) });
-    state.groups = await api('/groups'); state.activeGroupId = saved.id; renderGroups(); renderPlaygroundRequest(); await api('/settings', { method: 'PUT', body: JSON.stringify({ active_group_id: saved.id }) }); await loadRules(); $('group-dialog').close(); toast(t(id ? 'groupUpdated' : 'groupCreated'));
+    state.groups = await api('/groups'); state.activeGroupId = saved.id; renderGroups(); renderModelConfigs(state.settings.model_configs); renderPlaygroundRequest(); await api('/settings', { method: 'PUT', body: JSON.stringify({ active_group_id: saved.id }) }); await loadRules(); $('group-dialog').close(); toast(t(id ? 'groupUpdated' : 'groupCreated'));
   } catch (error) { toast(error.message); }
 });
 $('delete-group').addEventListener('click', async () => {
   const id = Number($('group-id').value); if (!id || !window.confirm(t('groupDeleteConfirm'))) return;
-  try { await api(`/groups/${id}`, { method: 'DELETE' }); state.groups = await api('/groups'); state.activeGroupId = state.groups[0].id; renderGroups(); renderPlaygroundRequest(); await api('/settings', { method: 'PUT', body: JSON.stringify({ active_group_id: state.activeGroupId }) }); await loadRules(); $('group-dialog').close(); toast(t('groupDeleted')); } catch (error) { toast(error.message); }
+  try { await api(`/groups/${id}`, { method: 'DELETE' }); state.groups = await api('/groups'); state.activeGroupId = state.groups[0].id; renderGroups(); renderModelConfigs(state.settings.model_configs); renderPlaygroundRequest(); await api('/settings', { method: 'PUT', body: JSON.stringify({ active_group_id: state.activeGroupId }) }); await loadRules(); $('group-dialog').close(); toast(t('groupDeleted')); } catch (error) { toast(error.message); }
 });
 
 $('new-rule').addEventListener('click', () => setForm()); $('match-type').addEventListener('change', updateFields); $('reply-type').addEventListener('change', updateFields);
@@ -234,16 +274,14 @@ $('rule-form').addEventListener('submit', async (event) => {
 });
 $('delete-rule').addEventListener('click', async () => { const id = $('rule-id').value; if (!id || !window.confirm(t('deleteConfirm'))) return; try { await api(`/rules/${id}`, { method: 'DELETE' }); await loadRules(); setForm(); toast(t('ruleDeleted')); } catch (error) { toast(error.message); } });
 
-$('models').addEventListener('input', () => syncModelOptions($('default-model').value));
 $('playground-endpoint').addEventListener('change', renderPlaygroundRequest);
-$('playground-model').addEventListener('change', renderPlaygroundRequest);
+$('playground-model').addEventListener('change', syncPlaygroundProtocol);
 $('playground-input').addEventListener('input', renderPlaygroundRequest);
 $('settings-form').addEventListener('submit', async (event) => {
   event.preventDefault(); const submit = event.submitter; submit.disabled = true;
   try {
-    const models = $('models').value.split(/\n|,/).map((item) => item.trim()).filter(Boolean);
-    const enabledOperations = ['chat', 'completions', 'responses', 'messages'].filter((operation) => $(`operation-${operation}`).checked);
-    await api('/settings', { method: 'PUT', body: JSON.stringify({ models, default_model: $('default-model').value, enabled_operations: enabledOperations, api_key: $('mock-api-key').value }) });
+    const modelConfigs = readModelConfigs();
+    await api('/settings', { method: 'PUT', body: JSON.stringify({ model_configs: modelConfigs, default_model: $('default-model').value }) });
     await loadSettings(); toast(t('settingsSaved'));
   } catch (error) { toast(error.message); } finally { submit.disabled = false; }
 });
@@ -252,7 +290,7 @@ $('playground-send').addEventListener('click', async () => {
   const button = $('playground-send'); button.disabled = true; const started = performance.now();
   try {
     const request = buildPlaygroundRequest(); renderPlaygroundRequest();
-    const response = await fetch(request.path, { method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders(), 'x-lmmock-group': String(state.activeGroupId) }, body: JSON.stringify(request.body) });
+    const response = await fetch(request.path, { method: 'POST', headers: { 'content-type': 'application/json', ...modelHeaders(request.body.model) }, body: JSON.stringify(request.body) });
     const data = await response.json(); const duration = Math.round(performance.now() - started);
     $('playground-output').textContent = JSON.stringify({ status: response.status, duration_ms: duration, body: data }, null, 2); $('playground-meta').textContent = `${response.status} · ${duration}ms`; await loadRequests();
   } catch (error) { $('playground-output').textContent = JSON.stringify({ error: error.message }, null, 2); $('playground-meta').textContent = t('requestFailed'); } finally { button.disabled = false; }
