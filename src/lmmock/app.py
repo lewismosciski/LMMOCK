@@ -175,33 +175,36 @@ async def _responses_stream(request: SemanticRequest, reply: SemanticReply, resp
     def event(kind: str, **values: Any) -> bytes:
         nonlocal sequence
         sequence += 1
-        payload: dict[str, Any] = {
-            "type": kind,
-            "sequence_number": sequence,
-            "response": {"id": response_id, "object": "response", "status": "in_progress", "model": request.model},
-        }
+        payload: dict[str, Any] = {"type": kind, "sequence_number": sequence}
         payload.update(values)
         return _sse(payload, kind)
 
-    yield event("response.created")
-    yield event("response.in_progress")
+    in_progress = {"id": response_id, "object": "response", "created_at": int(time.time()), "status": "in_progress", "model": request.model, "output": []}
+    yield event("response.created", response=in_progress)
+    yield event("response.in_progress", response=in_progress)
     item_id = _id("msg")
     if reply.kind == "tool":
         item_id = _id("fc")
-        yield event("response.output_item.added", output_index=0, item={"id": item_id, "type": "function_call", "status": "in_progress", "name": reply.tool_name, "arguments": ""})
+        call_id = _id("call")
+        yield event("response.output_item.added", output_index=0, item={"id": item_id, "type": "function_call", "status": "in_progress", "call_id": call_id, "name": reply.tool_name, "arguments": ""})
         arguments = _json(reply.arguments or {})
         for start in range(0, len(arguments), 32):
             yield event("response.function_call_arguments.delta", item_id=item_id, output_index=0, delta=arguments[start:start + 32])
         yield event("response.function_call_arguments.done", item_id=item_id, output_index=0, arguments=arguments)
+        final_item = {"id": item_id, "type": "function_call", "status": "completed", "call_id": call_id, "name": reply.tool_name, "arguments": arguments}
     else:
         yield event("response.output_item.added", output_index=0, item={"id": item_id, "type": "message", "status": "in_progress", "role": "assistant", "content": []})
-        yield event("response.content_part.added", output_index=0, content_index=0, part={"type": "output_text", "text": "", "annotations": []})
+        yield event("response.content_part.added", item_id=item_id, output_index=0, content_index=0, part={"type": "output_text", "text": "", "annotations": []})
         for start in range(0, len(reply.text), 4096):
             yield event("response.output_text.delta", item_id=item_id, output_index=0, content_index=0, delta=reply.text[start:start + 4096])
         yield event("response.output_text.done", item_id=item_id, output_index=0, content_index=0, text=reply.text)
-        yield event("response.content_part.done", item_id=item_id, output_index=0, content_index=0, part={"type": "output_text", "text": reply.text, "annotations": []})
-    yield event("response.output_item.done", output_index=0, item={"id": item_id})
-    yield event("response.completed", response=_responses_payload(request, reply, response_id))
+        content = {"type": "output_text", "text": reply.text, "annotations": []}
+        yield event("response.content_part.done", item_id=item_id, output_index=0, content_index=0, part=content)
+        final_item = {"id": item_id, "type": "message", "status": "completed", "role": "assistant", "content": [content]}
+    yield event("response.output_item.done", output_index=0, item=final_item)
+    completed = _responses_payload(request, reply, response_id)
+    completed["output"] = [final_item]
+    yield event("response.completed", response=completed)
 
 
 async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, response_id: str) -> AsyncIterator[bytes]:

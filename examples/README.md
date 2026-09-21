@@ -1,10 +1,14 @@
 # LMMock examples
 
-Start LMMock, then install the two official Python SDKs:
+Start LMMock, then create a virtual environment and install the two official Python SDKs:
 
 ```bash
+python3 -m venv .venv-examples
+source .venv-examples/bin/activate
 python -m pip install -r examples/requirements.txt
 ```
+
+On Debian or Ubuntu, install `python3-venv` with `apt` first if creating the virtual environment is unavailable. Do not install the example dependencies into the system Python.
 
 Run any example from the repository root:
 
