@@ -1,2 +1,3 @@
 anthropic
 openai
+google-genai>=1,<2

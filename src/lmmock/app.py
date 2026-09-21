@@ -70,6 +70,13 @@ def _reply_output(reply: SemanticReply) -> str:
 
 
 def _error_payload(provider: str, reply: SemanticReply) -> dict[str, Any]:
+    if provider == "gemini":
+        status = {
+            400: "INVALID_ARGUMENT", 401: "UNAUTHENTICATED", 403: "PERMISSION_DENIED",
+            404: "NOT_FOUND", 429: "RESOURCE_EXHAUSTED", 500: "INTERNAL",
+            501: "UNIMPLEMENTED", 503: "UNAVAILABLE", 504: "DEADLINE_EXCEEDED",
+        }.get(reply.status_code, "UNKNOWN")
+        return {"error": {"code": reply.status_code, "message": reply.text, "status": status}}
     if provider == "anthropic":
         return {"type": "error", "error": {"type": reply.error_type, "message": reply.text}}
     return {"error": {"message": reply.text, "type": reply.error_type, "param": None, "code": None}}
@@ -136,6 +143,41 @@ def _anthropic_payload(request: SemanticRequest, reply: SemanticReply, response_
 def _sse(data: Any, event: str | None = None) -> bytes:
     prefix = f"event: {event}\n" if event else ""
     return f"{prefix}data: {_json(data)}\n\n".encode()
+
+
+def _gemini_payload(request: SemanticRequest, reply: SemanticReply, response_id: str) -> dict[str, Any]:
+    part = {"functionCall": {"name": reply.tool_name, "args": reply.arguments or {}}} if reply.kind == "tool" else {"text": reply.text}
+    usage = _usage(request.text, _reply_output(reply))
+    return {
+        "candidates": [{"index": 0, "content": {"role": "model", "parts": [part]}, "finishReason": "STOP"}],
+        "usageMetadata": {"promptTokenCount": usage["input_tokens"], "candidatesTokenCount": usage["output_tokens"], "totalTokenCount": usage["total_tokens"]},
+        "modelVersion": request.model,
+        "responseId": response_id,
+    }
+
+
+async def _gemini_stream(payload: dict[str, Any], sse: bool) -> AsyncIterator[bytes]:
+    candidate = payload["candidates"][0]
+    part = candidate["content"]["parts"][0]
+    text = part.get("text", "")
+    count = max(1, (len(text) + 4095) // 4096)
+    if not sse:
+        yield b"["
+    for index in range(count):
+        chunk = {"responseId": payload["responseId"], "modelVersion": payload["modelVersion"]}
+        chunk_part = {"text": text[index * 4096:(index + 1) * 4096]} if "text" in part else part
+        chunk_candidate = {"index": 0, "content": {"role": "model", "parts": [chunk_part]}}
+        if index == count - 1:
+            chunk_candidate["finishReason"] = "STOP"
+            chunk["usageMetadata"] = payload["usageMetadata"]
+        chunk["candidates"] = [chunk_candidate]
+        yield _sse(chunk) if sse else ((b"," if index else b"") + _json(chunk).encode())
+    if not sse:
+        yield b"]"
+
+
+def _gemini_model(name: str) -> dict[str, Any]:
+    return {"name": f"models/{name}", "displayName": name, "supportedGenerationMethods": ["generateContent", "streamGenerateContent", "countTokens"]}
 
 
 async def _chat_stream(request: SemanticRequest, reply: SemanticReply, response_id: str, include_usage: bool) -> AsyncIterator[bytes]:
@@ -254,24 +296,38 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         authorization = request.headers.get("authorization", "")
         bearer = authorization[7:] if authorization.lower().startswith("bearer ") else ""
         supplied = bearer or request.headers.get("x-api-key", "")
+        if provider == "gemini":
+            supplied = request.headers.get("x-goog-api-key") or request.query_params.get("key", "")
         if supplied and secrets.compare_digest(supplied, required_key):
             return None
         error = SemanticReply("error", text=f"A valid API key is required for model '{config['name']}'.", status_code=401, error_type="authentication_error")
         return _error(provider, error, _id("req"))
 
-    async def handle(provider: str, operation: str, request: Request) -> Response:
+    async def handle(provider: str, operation: str, request: Request, model: str | None = None, stream: bool = False) -> Response:
+        def invalid(message: str) -> Response:
+            return _error(provider, SemanticReply("error", text=message, status_code=400, error_type="invalid_request_error"), _id("req"))
+
         raw = await request.body()
         try:
             body = json.loads(raw or b"{}")
         except json.JSONDecodeError:
-            return JSONResponse({"error": {"message": "Request body must be JSON", "type": "invalid_request_error"}}, status_code=400)
+            return invalid("Request body must be JSON")
         if not isinstance(body, dict):
-            return JSONResponse({"error": {"message": "Request body must be an object", "type": "invalid_request_error"}}, status_code=400)
+            return invalid("Request body must be an object")
         settings = store.get_settings()
         body = dict(body)
+        if provider == "gemini":
+            if operation == "countTokens" and "generateContentRequest" in body:
+                if not isinstance(body["generateContentRequest"], dict):
+                    return invalid("generateContentRequest must be an object")
+                body = dict(body["generateContentRequest"])
+            body.update(model=model, stream=stream)
         provider_default = next((config["name"] for config in settings["model_configs"] if config["protocol"] == provider), "")
         body.setdefault("model", provider_default)
-        semantic = request_from(provider, operation, body)
+        try:
+            semantic = request_from(provider, operation, body)
+        except ValueError as exc:
+            return invalid(str(exc))
         config = configured_model(settings, semantic.model, provider)
         if config is None:
             error = SemanticReply("error", text=f"Model '{semantic.model}' is not configured for the {provider} interface.", status_code=404, error_type="model_not_found")
@@ -279,11 +335,13 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         auth_error = authentication_error(provider, request, config)
         if auth_error:
             return auth_error
+        if provider == "gemini" and operation == "countTokens":
+            return JSONResponse({"totalTokens": _token_count(semantic.text)})
         groups = store.list_groups()
         requested_group = request.headers.get("x-lmmock-group") or body.get("lmmock_group")
         group = next((item for item in groups if str(item["id"]) == str(requested_group) or item["name"] == requested_group), None) if requested_group else None
         if requested_group and (group is None or group["id"] not in config["group_ids"]):
-            return JSONResponse({"error": {"message": f"Behavior group '{requested_group}' is not assigned to model '{semantic.model}'.", "type": "invalid_request_error"}}, status_code=400)
+            return invalid(f"Behavior group '{requested_group}' is not assigned to model '{semantic.model}'.")
         selected_groups = [group] if group else [item for item in groups if item["id"] in config["group_ids"]]
         group_label = ", ".join(item["name"] for item in selected_groups)
         started = time.perf_counter()
@@ -318,6 +376,13 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             record(request_id, rule["name"] if rule else None, reply.status_code, _error_payload(provider, reply), reply.text)
             return _error(provider, reply, request_id)
         response_id = _id("chatcmpl" if operation == "chat" else "cmpl" if operation == "completions" else "resp" if operation == "responses" else "msg")
+        if provider == "gemini":
+            payload = _gemini_payload(semantic, reply, response_id)
+            record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
+            if semantic.stream:
+                sse = request.query_params.get("alt") == "sse"
+                return StreamingResponse(_gemini_stream(payload, sse), media_type="text/event-stream" if sse else "application/json", headers={"cache-control": "no-cache", "x-request-id": request_id})
+            return JSONResponse(payload, headers={"x-request-id": request_id})
         if operation == "chat":
             payload = _chat_payload(semantic, reply, response_id)
             record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
@@ -390,7 +455,29 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     @app.get("/__lmmock/api/info")
     async def info() -> dict[str, Any]:
         settings = store.get_settings()
-        return {"name": "LMMock", "version": __version__, "providers": ["openai", "anthropic"], "operations": ["chat", "completions", "responses", "messages"], "models": settings["models"], "authentication": any(config["api_key"] for config in settings["model_configs"]), "data_dir": str(store.path.parent), "rules": len(store.list_rules()), "groups": len(store.list_groups())}
+        return {"name": "LMMock", "version": __version__, "providers": ["openai", "anthropic", "gemini"], "operations": ["chat", "completions", "responses", "messages", "generateContent"], "models": settings["models"], "authentication": any(config["api_key"] for config in settings["model_configs"]), "data_dir": str(store.path.parent), "rules": len(store.list_rules()), "groups": len(store.list_groups())}
+
+    @app.post("/gemini/v1beta/models/{model}:generateContent")
+    async def generate_content(model: str, request: Request) -> Response:
+        return await handle("gemini", "generateContent", request, model)
+
+    @app.post("/gemini/v1beta/models/{model}:streamGenerateContent")
+    async def stream_generate_content(model: str, request: Request) -> Response:
+        return await handle("gemini", "generateContent", request, model, stream=True)
+
+    @app.post("/gemini/v1beta/models/{model}:countTokens")
+    async def count_content_tokens(model: str, request: Request) -> Response:
+        return await handle("gemini", "countTokens", request, model)
+
+    @app.get("/gemini/v1beta/models")
+    async def gemini_models() -> dict[str, Any]:
+        return {"models": [_gemini_model(config["name"]) for config in store.get_settings()["model_configs"] if config["protocol"] == "gemini"]}
+
+    @app.get("/gemini/v1beta/models/{model}")
+    async def gemini_model(model: str) -> Response:
+        if configured_model(store.get_settings(), model, "gemini") is None:
+            return _error("gemini", SemanticReply("error", text=f"Model '{model}' is not configured for the gemini interface.", status_code=404), _id("req"))
+        return JSONResponse(_gemini_model(model))
 
     @app.get("/__lmmock/api/rules")
     async def list_rules(group_id: int | None = None) -> list[dict[str, Any]]:
@@ -456,7 +543,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     async def preview(request: Request) -> Response:
         data = await request.json()
         protocol = data.get("protocol", "openai_chat")
-        mapping = {"openai_chat": ("openai", "chat"), "openai_completions": ("openai", "completions"), "openai_responses": ("openai", "responses"), "anthropic_messages": ("anthropic", "messages")}
+        mapping = {"openai_chat": ("openai", "chat"), "openai_completions": ("openai", "completions"), "openai_responses": ("openai", "responses"), "anthropic_messages": ("anthropic", "messages"), "gemini_generate_content": ("gemini", "generateContent")}
         provider, operation = mapping.get(protocol, ("openai", "chat"))
         semantic = request_from(provider, operation, data.get("body", {}))
         settings = store.get_settings()

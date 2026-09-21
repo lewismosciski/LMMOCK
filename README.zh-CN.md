@@ -2,7 +2,7 @@
   <img src="src/lmmock/static/hero.svg" alt="LMMock — Mock 模型，运行真实应用。" width="100%">
 </p>
 
-<p align="center">面向 OpenAI 与 Anthropic API 的可视化 Mock Server。</p>
+<p align="center">面向 OpenAI、Anthropic 和 Gemini API 的可视化 Mock Server。</p>
 
 <p align="center">
   <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
@@ -19,7 +19,7 @@ LMMock 让 AI 应用获得稳定可控的模型回复，同时保留原有 SDK �
 
 - **轻量化：**单个本地服务、SQLite 存储，不依赖外部基础设施。
 - **简单易用：**在网页中配置模型和可复用规则，只需修改 SDK Base URL。
-- **广泛兼容：**支持 Mock OpenAI Chat Completions、Completions、Responses 和 Anthropic Messages。
+- **广泛兼容：**支持 Mock OpenAI Chat Completions、Completions、Responses、Anthropic Messages 和 Gemini Generate Content。
 - **跨平台：**支持源码、Docker，以及 Linux、macOS、Windows Release 压缩包。
 - **零 Provider 成本：**无需真实 API 请求或 Token，即可获得稳定可控的测试结果。
 
@@ -50,9 +50,9 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 
 <p align="center"><img src=".github/assets/lmmock-ui.png" alt="LMMock 网页界面" width="100%"></p>
 
-1. 在**模型、接口与 API 密钥**中保留应用原本使用的模型名，选择 OpenAI 兼容或 Anthropic 接口，并绑定一个或多个行为组。
+1. 在**模型、接口与 API 密钥**中保留应用原本使用的模型名，选择 OpenAI 兼容、Anthropic 或 Gemini 接口，并绑定一个或多个行为组。
 2. 在**规则**中选择模板，或者自行设置匹配条件和回复。规则可以返回文本、JSON、工具调用、错误或指定大小的随机数据。
-3. 只修改 SDK Base URL：OpenAI 兼容客户端使用 `http://127.0.0.1:17321/openai/v1`，Anthropic 客户端使用 `http://127.0.0.1:17321/anthropic`。
+3. 修改 SDK Base URL：分别使用 `http://127.0.0.1:17321/openai/v1`、`http://127.0.0.1:17321/anthropic` 或 `http://127.0.0.1:17321/gemini`。
 
 使用 Playground 可以立即验证规则；最近请求会展示完整请求、响应和 Token 估算。
 
@@ -67,17 +67,43 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 | Anthropic | `POST /anthropic/v1/messages` | ✓ | ✓ | ✓ |
 | Anthropic | `POST /anthropic/v1/messages/count_tokens` | ✓ | — | — |
 | Anthropic | `GET /anthropic/v1/models` | ✓ | — | — |
+| Gemini | `POST /gemini/v1beta/models/{model}:generateContent` | ✓ | — | ✓ |
+| Gemini | `POST /gemini/v1beta/models/{model}:streamGenerateContent` | ✓ | ✓ | ✓ |
+| Gemini | `POST /gemini/v1beta/models/{model}:countTokens` | ✓ | — | — |
+| Gemini | `GET /gemini/v1beta/models` | ✓ | — | — |
+| Gemini | `GET /gemini/v1beta/models/{model}` | ✓ | — | — |
 
-分别查看两个接口已配置的模型：
+分别查看各接口已配置的模型：
 
 ```bash
 curl http://127.0.0.1:17321/openai/v1/models
 curl http://127.0.0.1:17321/anthropic/v1/models
+curl http://127.0.0.1:17321/gemini/v1beta/models
 ```
 
 ## SDK 示例
 
-[`examples/`](examples/README.md) 提供可直接运行的 OpenAI Chat Completions、Completions、Responses 和 Anthropic Messages 示例。它们使用官方 Python SDK，默认只连接本地 LMMock 服务。
+[`examples/`](examples/README.md) 提供可直接运行的 OpenAI、Anthropic 和 Gemini 示例。它们使用官方 Python SDK，默认只连接本地 LMMock 服务。
+
+### Gemini
+
+在网页中添加模型（例如 `gemini-2.5-flash`），选择 **Gemini** 接口并绑定行为组。安装 `google-genai` 后：
+
+```python
+from google import genai
+from google.genai import types
+
+with genai.Client(
+    vertexai=False,
+    api_key="mock",
+    http_options=types.HttpOptions(
+        base_url="http://127.0.0.1:17321/gemini", api_version="v1beta"
+    ),
+) as client:
+    print(client.models.generate_content(model="gemini-2.5-flash", contents="Hello").text)
+```
+
+如果为模型设置了 Key，请填入相同的值。Gemini 接受 `x-goog-api-key` 或 `?key=`。流式接口使用 `:streamGenerateContent?alt=sse`，Token 数量为估算值。目前支持 Gemini Developer API 的文本和函数调用 Mock，不包含 Vertex AI、Live、文件或媒体生成。
 
 ## 在 Claude Code 中使用
 
@@ -125,8 +151,7 @@ Codex 的 Provider 设置必须放在用户级配置中，而不是项目本地�
 
 - OpenAI、DeepSeek、GLM 以及其他 OpenAI 兼容客户端：`http://127.0.0.1:17321/openai/v1`
 - Claude 或 Anthropic 客户端：`http://127.0.0.1:17321/anthropic`
-
-即将支持原生 Gemini 和更多 Provider 接口格式。
+- 原生 Gemini 客户端（`v1beta`）：`http://127.0.0.1:17321/gemini`
 
 在 Configuration 中为应用现有的每个模型建立一行，例如 `gpt-4o`、`deepseek-chat`、`claude-3-7-sonnet` 和 `glm-4-plus`。分别选择接口格式、填写该客户端已经使用的 Key（留空则接受任意 Key），并勾选一个或多个行为组。LMMock 会按优先级合并这些组中的规则；规则的“适用模型”还可以用精确名称或 `gpt-*, o3-*` 进一步筛选。
 

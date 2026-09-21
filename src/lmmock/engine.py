@@ -69,6 +69,29 @@ def request_from(provider: str, operation: str, body: dict[str, Any]) -> Semanti
         text = _part_text(body.get("input", ""))
         if isinstance(body.get("input"), list):
             text = "\n".join(_part_text(item.get("content", item)) if isinstance(item, dict) else _part_text(item) for item in body["input"])
+    elif provider == "gemini":
+        contents = body.get("contents", [])
+        system = body.get("systemInstruction", {})
+        if not isinstance(contents, list) or not isinstance(system, dict):
+            raise ValueError("contents must be an array and systemInstruction must be an object")
+        pieces = []
+        for content in [system, *contents]:
+            if not isinstance(content, dict) or not isinstance(content.get("parts", []), list):
+                raise ValueError("Each content must be an object with a parts array")
+            parts = []
+            for part in content.get("parts", []):
+                if not isinstance(part, dict):
+                    raise ValueError("Each part must be an object")
+                if "text" in part:
+                    if not isinstance(part["text"], str):
+                        raise ValueError("Part text must be a string")
+                    parts.append(part["text"])
+                for key in ("functionCall", "functionResponse"):
+                    if key in part:
+                        parts.append(f"{key}: {json.dumps(part[key], ensure_ascii=False)}")
+            if parts:
+                pieces.append(f"{content.get('role', 'user')}: {' '.join(parts)}")
+        text = "\n".join(pieces)
     else:
         pieces = [_part_text(body.get("system", ""))]
         for message in body.get("messages", []):
