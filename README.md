@@ -71,31 +71,7 @@ curl http://127.0.0.1:17321/anthropic/v1/models
 
 ## SDK examples
 
-```python
-from openai import OpenAI
-
-client = OpenAI(base_url="http://127.0.0.1:17321/openai/v1", api_key="mock")
-
-client.completions.create(model="gpt-5.6-sol", prompt="hello")
-client.chat.completions.create(
-    model="gpt-5.6-sol",
-    messages=[{"role": "user", "content": "hello"}],
-)
-client.responses.create(model="gpt-5.6-sol", input="hello")
-client.models.list()
-```
-
-```python
-from anthropic import Anthropic
-
-client = Anthropic(base_url="http://127.0.0.1:17321/anthropic", api_key="mock")
-client.messages.create(
-    model="claude-5-1-opus",
-    max_tokens=128,
-    messages=[{"role": "user", "content": "hello"}],
-)
-client.models.list()
-```
+Runnable examples for OpenAI Chat Completions, Completions, Responses, and Anthropic Messages are in [`examples/`](examples/README.md). They use the official Python SDKs and connect only to your local LMMock server by default.
 
 ## Use with Claude Code
 
