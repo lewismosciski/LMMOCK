@@ -10,7 +10,5 @@ dist/
 build/
 *.egg-info/
 
-# Local product research and planning notes
-docs/development-plan.md
-docs/distribution-and-launch.md
-docs/research.md
+# Local product research, planning, and promotion notes
+local_docs/
