@@ -126,6 +126,8 @@ For an existing multi-agent application, keep every original model name and chan
 - OpenAI, DeepSeek, GLM, and other OpenAI-compatible clients: `http://127.0.0.1:17321/openai/v1`
 - Claude or Anthropic clients: `http://127.0.0.1:17321/anthropic`
 
+Native Gemini and more provider formats are coming next.
+
 Add one Configuration row for every existing name—such as `gpt-4o`, `deepseek-chat`, `claude-3-7-sonnet`, and `glm-4-plus`. Select its interface, enter the key already used by that client (or leave it blank to accept any key), and check one or more behavior groups. Rules from those groups are combined by priority; their Models field can further narrow a rule with an exact name or comma-separated globs such as `gpt-*, o3-*`.
 
 ## Network access and API keys

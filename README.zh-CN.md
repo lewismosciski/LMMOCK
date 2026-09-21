@@ -126,6 +126,8 @@ Codex 的 Provider 设置必须放在用户级配置中，而不是项目本地�
 - OpenAI、DeepSeek、GLM 以及其他 OpenAI 兼容客户端：`http://127.0.0.1:17321/openai/v1`
 - Claude 或 Anthropic 客户端：`http://127.0.0.1:17321/anthropic`
 
+即将支持原生 Gemini 和更多 Provider 接口格式。
+
 在 Configuration 中为应用现有的每个模型建立一行，例如 `gpt-4o`、`deepseek-chat`、`claude-3-7-sonnet` 和 `glm-4-plus`。分别选择接口格式、填写该客户端已经使用的 Key（留空则接受任意 Key），并勾选一个或多个行为组。LMMock 会按优先级合并这些组中的规则；规则的“适用模型”还可以用精确名称或 `gpt-*, o3-*` 进一步筛选。
 
 ## 网络访问与 API Key
