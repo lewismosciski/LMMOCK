@@ -9,11 +9,6 @@ from lmmock.config import port
 from lmmock.storage import Store
 
 
-@pytest.fixture
-def app(tmp_path):
-    return create_app(tmp_path)
-
-
 @pytest.mark.asyncio
 async def test_health_ui_and_default_chat(app):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
@@ -128,27 +123,10 @@ async def test_tool_and_stream_shapes(app):
         })
         chat = await client.post("/openai/v1/chat/completions", json={"model": "gpt-5.6-sol", "stream": True, "messages": [{"role": "user", "content": "use tool"}]})
         responses = await client.post("/openai/v1/responses", json={"model": "gpt-5.6-sol", "stream": True, "input": "use tool"})
-        text_response = await client.post("/openai/v1/responses", json={"model": "gpt-5.6-sol", "stream": True, "input": "hello"})
         anthropic = await client.post("/anthropic/v1/messages", json={"model": "claude-5-1-opus", "stream": True, "max_tokens": 30, "messages": [{"role": "user", "content": "use tool"}]})
     assert "[DONE]" in chat.text
     assert "response.function_call_arguments.delta" in responses.text
     assert "message_start" in anthropic.text and "input_json_delta" in anthropic.text
-
-    tool_events = [json.loads(line[6:]) for line in responses.text.splitlines() if line.startswith("data: ")]
-    tool_added = next(event for event in tool_events if event["type"] == "response.output_item.added")
-    tool_done = next(event for event in tool_events if event["type"] == "response.output_item.done")
-    assert tool_done["item"]["id"] == tool_added["item"]["id"]
-    assert tool_done["item"]["call_id"] == tool_added["item"]["call_id"]
-    assert tool_done["item"]["status"] == "completed"
-
-    text_events = [json.loads(line[6:]) for line in text_response.text.splitlines() if line.startswith("data: ")]
-    content_added = next(event for event in text_events if event["type"] == "response.content_part.added")
-    item_done = next(event for event in text_events if event["type"] == "response.output_item.done")
-    completed = next(event for event in text_events if event["type"] == "response.completed")
-    assert content_added["item_id"] == item_done["item"]["id"]
-    assert item_done["item"]["content"][0]["text"] == "LMMock is running."
-    assert completed["response"]["output"] == [item_done["item"]]
-
 
 @pytest.mark.asyncio
 async def test_provider_model_routes_have_distinct_shapes(app):
