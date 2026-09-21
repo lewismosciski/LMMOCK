@@ -142,6 +142,10 @@ Then open Configuration and optionally set a different Mock API key for each mod
 
 Contributions of every size are very welcome. Issues and pull requests are always appreciated—see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Friends
+
+- [LINUX DO](https://linux.do/)
+
 ## License
 
 MIT

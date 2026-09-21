@@ -142,6 +142,10 @@ python3 run.py --host 0.0.0.0
 
 我们非常欢迎任何形式、任何规模的贡献。欢迎提交 Issue 或 Pull Request，参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
+## 友情链接
+
+- [LINUX DO](https://linux.do/)
+
 ## 开源协议
 
 MIT
