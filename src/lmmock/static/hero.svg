@@ -59,8 +59,6 @@
       <rect x="168" width="112" height="34" rx="17" fill="#17273a" stroke="#88f1cf" stroke-opacity=".36"/>
       <circle cx="187" cy="17" r="4" fill="#88f1cf"/>
       <text x="200" y="21" fill="#cfe9e1">Anthropic</text>
-      <rect x="292" width="108" height="34" rx="17" fill="#17273a" stroke="#aabbd0" stroke-opacity=".25"/>
-      <text x="311" y="21" fill="#b8c7d8">Local-first</text>
     </g>
   </g>
 

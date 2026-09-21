@@ -22,7 +22,7 @@ LMMock gives AI applications deterministic model replies without changing their 
 ```bash
 git clone https://github.com/lewismosciski/LMMOCK.git
 cd LMMOCK
-python3 run.py                  # Windows: py run.py
+python3 run.py
 ```
 
 Or use Docker:
@@ -32,21 +32,19 @@ docker run --rm -p 127.0.0.1:17321:17321 \
   -v lmmock-data:/data ghcr.io/lewismosciski/lmmock:latest
 ```
 
-Open [http://127.0.0.1:17321](http://127.0.0.1:17321). Standalone Linux, macOS, and Windows builds are on the [Releases page](https://github.com/lewismosciski/LMMOCK/releases).
+Open [http://127.0.0.1:17321](http://127.0.0.1:17321). Linux, macOS, and Windows builds are on the [Releases page](https://github.com/lewismosciski/LMMOCK/releases).
 
 ## Models, behavior groups, and rules
 
-- **Models** keep the names already used by your application. Each model independently selects the OpenAI-compatible or Anthropic interface, its visible Mock API key, and one or more behavior groups.
-- **Behavior groups** isolate reusable sets of rules, such as `happy-path`, `tool-calls`, and `failures`. A model may combine several groups.
-- **Rules** belong to one group, can target exact model names or glob patterns such as `gpt-*`, and match every request, contained text, or a regular expression.
+You only need to configure a model, add a rule, and point your application's SDK to LMMock.
 
-Rules from all groups assigned to the requested model participate by priority. To restrict one request to a single assigned group, send `x-lmmock-group: happy-path` or its numeric group ID.
+<p align="center"><img src=".github/assets/lmmock-ui.png" alt="LMMock browser interface" width="100%"></p>
 
-New workspaces start with `gpt-5.6-sol` for the OpenAI-compatible interface and `claude-5-1-opus` for Anthropic. If a request omits `model`, LMMock uses the first configured model for that request's interface.
+1. In **Models, interfaces & API keys**, keep the model name used by your app, choose OpenAI-compatible or Anthropic, and assign one or more behavior groups.
+2. In **Rules**, select a template or define what to match and what LMMock should return. Rules can return text, JSON, tool calls, errors, or exact-size random data.
+3. Change only the SDK Base URL: use `http://127.0.0.1:17321/openai/v1` for OpenAI-compatible clients or `http://127.0.0.1:17321/anthropic` for Anthropic clients.
 
-New workspaces include an editable `foolAI` example. A Chinese question such as `你吃饭了吗？` becomes the deterministic reply `我吃饭了！`. The same example is also available in the template list.
-
-Rules can also return fresh random ASCII data at an exact size from 0 to 10 MB. Use the built-in **Large random data** template to test clients against large model responses. The Recent requests panel shows estimated input, output, and total token usage, including a per-model breakdown. Statistics live in memory and reset when the request list is cleared or the server restarts.
+Use the Playground to try a rule immediately. Recent requests shows the full request, response, and estimated token usage.
 
 ## Supported APIs
 
@@ -152,7 +150,7 @@ Localhost is the safe default. To share LMMock on a trusted LAN, bind to all int
 python3 run.py --host 0.0.0.0
 ```
 
-Then open Configuration and optionally set a different Mock API key for each model. Keys are intentionally visible in the web UI and stored in the local SQLite database. They protect generation and token-count requests for their model; model discovery, the management UI, and management API remain open. Read [SECURITY.md](SECURITY.md) before exposing the server.
+Then open Configuration and optionally set a different Mock API key for each model. Keys are intentionally visible in the web UI and stored in the local SQLite database. They protect generation and token-count requests for their model; model discovery, the management UI, and management API remain open.
 
 ## Contributing
 
