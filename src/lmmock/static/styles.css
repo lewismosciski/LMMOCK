@@ -67,7 +67,11 @@ h1 { font-size: clamp(36px, 5vw, 64px); line-height: .98; letter-spacing: -.055e
 .text-button { background: transparent; color: var(--muted); font-size: 11px; padding: 7px; }
 .heading-actions { display: flex; align-items: center; gap: 3px; }
 
-.rules { display: grid; gap: 8px; }
+.rules { display: grid; gap: 8px; max-height: 360px; overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; scrollbar-color: #34465f transparent; scrollbar-width: thin; }
+.rules::-webkit-scrollbar { width: 8px; }
+.rules::-webkit-scrollbar-track { background: transparent; }
+.rules::-webkit-scrollbar-thumb { background: #34465f; border: 2px solid transparent; border-radius: 999px; background-clip: padding-box; }
+.rules::-webkit-scrollbar-thumb:hover { background-color: #48617f; }
 .group-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: 7px; border-bottom: 1px solid var(--line); margin: -4px 0 18px; padding-bottom: 18px; }
 .rule-group-field { margin-bottom: 13px; }
 .template-heading { display: grid; gap: 3px; margin-bottom: 10px; }
