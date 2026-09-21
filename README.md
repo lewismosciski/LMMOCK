@@ -2,7 +2,7 @@
   <img src="src/lmmock/static/hero.svg" alt="LMMock — Mock the model. Run the real app." width="100%">
 </p>
 
-<p align="center">A visual mock server for OpenAI and Anthropic APIs.</p>
+<p align="center">A visual mock server for OpenAI, Anthropic, and Gemini APIs.</p>
 
 <p align="center">
   <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
@@ -19,7 +19,7 @@ LMMock gives AI applications deterministic model replies without changing their 
 
 - **Lightweight:** one local service with SQLite storage and no external infrastructure.
 - **Easy to use:** configure models and reusable rules in the browser, then change only your SDK Base URL.
-- **Broadly compatible:** mock OpenAI Chat Completions, Completions, Responses, and Anthropic Messages.
+- **Broadly compatible:** mock OpenAI Chat Completions, Completions, Responses, Anthropic Messages, and Gemini Generate Content.
 - **Cross-platform:** run from source, Docker, or a Linux, macOS, or Windows release archive.
 - **No provider cost:** deterministic testing without real API calls or tokens.
 
@@ -50,9 +50,9 @@ You only need to configure a model, add a rule, and point your application's SDK
 
 <p align="center"><img src=".github/assets/lmmock-ui.png" alt="LMMock browser interface" width="100%"></p>
 
-1. In **Models, interfaces & API keys**, keep the model name used by your app, choose OpenAI-compatible or Anthropic, and assign one or more behavior groups.
+1. In **Models, interfaces & API keys**, keep the model name used by your app, choose OpenAI-compatible, Anthropic, or Gemini, and assign one or more behavior groups.
 2. In **Rules**, select a template or define what to match and what LMMock should return. Rules can return text, JSON, tool calls, errors, or exact-size random data.
-3. Change only the SDK Base URL: use `http://127.0.0.1:17321/openai/v1` for OpenAI-compatible clients or `http://127.0.0.1:17321/anthropic` for Anthropic clients.
+3. Change the SDK Base URL: use `http://127.0.0.1:17321/openai/v1`, `http://127.0.0.1:17321/anthropic`, or `http://127.0.0.1:17321/gemini` for the corresponding client.
 
 Use the Playground to try a rule immediately. Recent requests shows the full request, response, and estimated token usage.
 
@@ -67,17 +67,43 @@ Use the Playground to try a rule immediately. Recent requests shows the full req
 | Anthropic | `POST /anthropic/v1/messages` | ✓ | ✓ | ✓ |
 | Anthropic | `POST /anthropic/v1/messages/count_tokens` | ✓ | — | — |
 | Anthropic | `GET /anthropic/v1/models` | ✓ | — | — |
+| Gemini | `POST /gemini/v1beta/models/{model}:generateContent` | ✓ | — | ✓ |
+| Gemini | `POST /gemini/v1beta/models/{model}:streamGenerateContent` | ✓ | ✓ | ✓ |
+| Gemini | `POST /gemini/v1beta/models/{model}:countTokens` | ✓ | — | — |
+| Gemini | `GET /gemini/v1beta/models` | ✓ | — | — |
+| Gemini | `GET /gemini/v1beta/models/{model}` | ✓ | — | — |
 
 List configured models for each interface:
 
 ```bash
 curl http://127.0.0.1:17321/openai/v1/models
 curl http://127.0.0.1:17321/anthropic/v1/models
+curl http://127.0.0.1:17321/gemini/v1beta/models
 ```
 
 ## SDK examples
 
-Runnable examples for OpenAI Chat Completions, Completions, Responses, and Anthropic Messages are in [`examples/`](examples/README.md). They use the official Python SDKs and connect only to your local LMMock server by default.
+Runnable examples for OpenAI, Anthropic, and Gemini are in [`examples/`](examples/README.md). They use the official Python SDKs and connect only to your local LMMock server by default.
+
+### Gemini
+
+Add your model (for example, `gemini-2.5-flash`) in the UI, select **Gemini**, and assign a behavior group. With `google-genai` installed:
+
+```python
+from google import genai
+from google.genai import types
+
+with genai.Client(
+    vertexai=False,
+    api_key="mock",
+    http_options=types.HttpOptions(
+        base_url="http://127.0.0.1:17321/gemini", api_version="v1beta"
+    ),
+) as client:
+    print(client.models.generate_content(model="gemini-2.5-flash", contents="Hello").text)
+```
+
+Use the model's configured key if you set one. Gemini accepts `x-goog-api-key` or `?key=`. Streaming uses `:streamGenerateContent?alt=sse`; token counts are estimates. This covers text and function-call mocks through the Gemini Developer API, not Vertex AI, Live, files, or media generation.
 
 ## Use with Claude Code
 
@@ -125,8 +151,7 @@ For an existing multi-agent application, keep every original model name and chan
 
 - OpenAI, DeepSeek, GLM, and other OpenAI-compatible clients: `http://127.0.0.1:17321/openai/v1`
 - Claude or Anthropic clients: `http://127.0.0.1:17321/anthropic`
-
-Native Gemini and more provider formats are coming next.
+- Native Gemini clients (`v1beta`): `http://127.0.0.1:17321/gemini`
 
 Add one Configuration row for every existing name—such as `gpt-4o`, `deepseek-chat`, `claude-3-7-sonnet`, and `glm-4-plus`. Select its interface, enter the key already used by that client (or leave it blank to accept any key), and check one or more behavior groups. Rules from those groups are combined by priority; their Models field can further narrow a rule with an exact name or comma-separated globs such as `gpt-*, o3-*`.
 

@@ -23,7 +23,7 @@
     <section class="hero">
       <div>
         <h1 data-i18n="heroTitle">Shape the model response.</h1>
-        <p class="hero-copy" data-i18n="heroCopy">Create deterministic replies for OpenAI and Anthropic clients, then test the same application code without a model call.</p>
+        <p class="hero-copy" data-i18n="heroCopy">Create deterministic replies for OpenAI, Anthropic, and Gemini clients, then test the same application code without a model call.</p>
       </div>
       <div class="endpoint-list" aria-label="SDK base URLs">
         <button class="endpoint" data-copy="http://127.0.0.1:17321/openai/v1" title="Copy OpenAI-compatible base URL">
@@ -31,6 +31,9 @@
         </button>
         <button class="endpoint" data-copy="http://127.0.0.1:17321/anthropic" title="Copy Anthropic base URL">
           <span>Anthropic</span><code>127.0.0.1:17321/anthropic</code><b data-i18n="copy">Copy</b>
+        </button>
+        <button class="endpoint" data-copy="http://127.0.0.1:17321/gemini" title="Copy Gemini base URL">
+          <span>Gemini</span><code>127.0.0.1:17321/gemini</code><b data-i18n="copy">Copy</b>
         </button>
       </div>
     </section>
@@ -65,7 +68,7 @@
             <label><span data-i18n="ruleModels">Models</span><input id="model-pattern" data-i18n-placeholder="modelPatternPlaceholder" placeholder="* or gpt-*, deepseek-chat"></label>
           </div>
           <div class="field-grid two">
-            <label><span data-i18n="scope">Scope</span><select id="scope"><option value="*" data-i18n="allEndpoints">All endpoints</option><option value="chat">OpenAI Chat</option><option value="completions">OpenAI Completions</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
+            <label><span data-i18n="scope">Scope</span><select id="scope"><option value="*" data-i18n="allEndpoints">All endpoints</option><option value="chat">OpenAI Chat</option><option value="completions">OpenAI Completions</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option><option value="generateContent">Gemini Generate Content</option></select></label>
             <label><span data-i18n="priority">Priority</span><input id="priority" type="number" value="100" min="1" max="9999"></label>
           </div>
           <div class="field-grid two">
@@ -99,7 +102,7 @@
       <section class="panel playground-panel">
         <div class="panel-heading compact"><div><p class="kicker">03</p><h2>Playground</h2><p data-i18n="playgroundHelp">Send one request through the real endpoint.</p></div></div>
         <div class="field-grid three playground-fields">
-          <label><span data-i18n="endpoint">Endpoint</span><select id="playground-endpoint"><option value="chat">OpenAI Chat</option><option value="completions">OpenAI Completions</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option></select></label>
+          <label><span data-i18n="endpoint">Endpoint</span><select id="playground-endpoint"><option value="chat">OpenAI Chat</option><option value="completions">OpenAI Completions</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option><option value="generateContent">Gemini Generate Content</option></select></label>
           <label><span data-i18n="model">Model</span><select id="playground-model"></select></label>
           <label><span data-i18n="input">Input</span><textarea id="playground-input" rows="3">weather in Shanghai</textarea></label>
         </div>

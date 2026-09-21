@@ -309,8 +309,8 @@ class Store:
             if not name:
                 raise ValueError("Each model requires a name")
             protocol = str(item.get("protocol", "openai"))
-            if protocol not in {"openai", "anthropic"}:
-                raise ValueError("Model protocol must be openai or anthropic")
+            if protocol not in {"openai", "anthropic", "gemini"}:
+                raise ValueError("Model protocol must be openai, anthropic, or gemini")
             assigned_groups = list(dict.fromkeys(int(group_id) for group_id in item.get("group_ids", [])))
             if not assigned_groups or any(group_id not in group_ids for group_id in assigned_groups):
                 raise ValueError("Each model requires one or more existing behavior groups")
