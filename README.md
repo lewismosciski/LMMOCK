@@ -21,25 +21,7 @@ LMMock gives AI applications deterministic model replies without changing their 
 
 ### Release archive (no Python required)
 
-Download the archive for your system from the [v0.2.0 release](https://github.com/lewismosciski/LMMOCK/releases/tag/v0.2.0), extract it, and run LMMock:
-
-```bash
-# Linux x86_64
-tar -xzf lmmock-v0.2.0-linux-x86_64.tar.gz
-./lmmock/lmmock
-
-# macOS Apple Silicon; use macos-x86_64 on Intel Macs
-tar -xzf lmmock-v0.2.0-macos-arm64.tar.gz
-./lmmock/lmmock
-```
-
-```powershell
-# Windows x86_64
-Expand-Archive .\lmmock-v0.2.0-windows-x86_64.zip
-.\lmmock\lmmock.exe
-```
-
-Open [http://127.0.0.1:17321](http://127.0.0.1:17321).
+Download the archive for your system from [Releases](https://github.com/lewismosciski/LMMOCK/releases), extract it, run `lmmock` (`lmmock.exe` on Windows), then open [http://127.0.0.1:17321](http://127.0.0.1:17321).
 
 ### From source
 
