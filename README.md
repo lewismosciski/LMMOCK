@@ -17,6 +17,12 @@
 
 LMMock gives AI applications deterministic model replies without changing their SDK calls. Configure models, interfaces, behavior groups, and rules in the browser, then run the real application without provider tokens.
 
+- **Lightweight:** one local service with SQLite storage and no external infrastructure.
+- **Easy to use:** configure models and reusable rules in the browser, then change only your SDK Base URL.
+- **Broadly compatible:** mock OpenAI Chat Completions, Completions, Responses, and Anthropic Messages.
+- **Cross-platform:** run from source, Docker, or a Linux, macOS, or Windows release archive.
+- **No provider cost:** deterministic testing without real API calls or tokens.
+
 ## Quick start
 
 ### Release archive (no Python required)

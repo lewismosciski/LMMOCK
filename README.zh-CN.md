@@ -17,6 +17,12 @@
 
 LMMock 让 AI 应用获得稳定可控的模型回复，同时保留原有 SDK 调用。你可以在网页中配置模型、接口、行为组与规则，无需真实 Provider Token 即可运行应用。
 
+- **轻量化：**单个本地服务、SQLite 存储，不依赖外部基础设施。
+- **简单易用：**在网页中配置模型和可复用规则，只需修改 SDK Base URL。
+- **广泛兼容：**支持 Mock OpenAI Chat Completions、Completions、Responses 和 Anthropic Messages。
+- **跨平台：**支持源码、Docker，以及 Linux、macOS、Windows Release 压缩包。
+- **零 Provider 成本：**无需真实 API 请求或 Token，即可获得稳定可控的测试结果。
+
 ## 快速启动
 
 ### Release 压缩包（无需 Python）
