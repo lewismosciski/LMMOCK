@@ -19,20 +19,42 @@ LMMock gives AI applications deterministic model replies without changing their 
 
 ## Quick start
 
+### Release archive (no Python required)
+
+Download the archive for your system from the [v0.2.0 release](https://github.com/lewismosciski/LMMOCK/releases/tag/v0.2.0), extract it, and run LMMock:
+
+```bash
+# Linux x86_64
+tar -xzf lmmock-v0.2.0-linux-x86_64.tar.gz
+./lmmock/lmmock
+
+# macOS Apple Silicon; use macos-x86_64 on Intel Macs
+tar -xzf lmmock-v0.2.0-macos-arm64.tar.gz
+./lmmock/lmmock
+```
+
+```powershell
+# Windows x86_64
+Expand-Archive .\lmmock-v0.2.0-windows-x86_64.zip
+.\lmmock\lmmock.exe
+```
+
+Open [http://127.0.0.1:17321](http://127.0.0.1:17321).
+
+### From source
+
 ```bash
 git clone https://github.com/lewismosciski/LMMOCK.git
 cd LMMOCK
 python3 run.py
 ```
 
-Or use Docker:
+### Docker
 
 ```bash
 docker run --rm -p 127.0.0.1:17321:17321 \
   -v lmmock-data:/data ghcr.io/lewismosciski/lmmock:latest
 ```
-
-Open [http://127.0.0.1:17321](http://127.0.0.1:17321). Linux, macOS, and Windows builds are on the [Releases page](https://github.com/lewismosciski/LMMOCK/releases).
 
 ## Models, behavior groups, and rules
 

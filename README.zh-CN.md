@@ -19,20 +19,42 @@ LMMock 让 AI 应用获得稳定可控的模型回复，同时保留原有 SDK �
 
 ## 快速启动
 
+### Release 压缩包（无需 Python）
+
+从 [v0.2.0 Release](https://github.com/lewismosciski/LMMOCK/releases/tag/v0.2.0) 下载对应系统的压缩包，解压后直接运行：
+
+```bash
+# Linux x86_64
+tar -xzf lmmock-v0.2.0-linux-x86_64.tar.gz
+./lmmock/lmmock
+
+# macOS Apple Silicon；Intel Mac 请使用 macos-x86_64
+tar -xzf lmmock-v0.2.0-macos-arm64.tar.gz
+./lmmock/lmmock
+```
+
+```powershell
+# Windows x86_64
+Expand-Archive .\lmmock-v0.2.0-windows-x86_64.zip
+.\lmmock\lmmock.exe
+```
+
+打开 [http://127.0.0.1:17321](http://127.0.0.1:17321)。
+
+### 从源码启动
+
 ```bash
 git clone https://github.com/lewismosciski/LMMOCK.git
 cd LMMOCK
 python3 run.py
 ```
 
-或使用 Docker：
+### Docker
 
 ```bash
 docker run --rm -p 127.0.0.1:17321:17321 \
   -v lmmock-data:/data ghcr.io/lewismosciski/lmmock:latest
 ```
-
-打开 [http://127.0.0.1:17321](http://127.0.0.1:17321)。Linux、macOS 与 Windows 程序可在 [Releases 页面](https://github.com/lewismosciski/LMMOCK/releases)下载。
 
 ## 模型、行为组与规则
 
