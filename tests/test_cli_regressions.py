@@ -28,3 +28,14 @@ def test_serve_preserves_options_on_either_side_of_subcommand(tmp_path, monkeypa
     assert captured["port"] == 18432
     assert captured["host"] == "127.0.0.2"
     assert captured["app"].state.lmmock.store.path.parent == tmp_path
+
+
+@pytest.mark.parametrize("host,shown", [("::1", "[::1]"), ("::", "[::1]"), ("0.0.0.0", "127.0.0.1")])
+def test_cli_prints_usable_ipv6_and_provider_urls(tmp_path, monkeypatch, capsys, host, shown):
+    from lmmock import cli
+
+    monkeypatch.setattr(cli.uvicorn, "run", lambda *args, **kwargs: None)
+    cli.main(["--host", host, "--port", "18432", "--data-dir", str(tmp_path), "--no-open-browser"])
+    output = capsys.readouterr().out
+    for path in ("openai/v1", "anthropic", "gemini"):
+        assert f"http://{shown}:18432/{path}" in output

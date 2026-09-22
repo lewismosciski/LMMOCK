@@ -42,14 +42,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "data-dir":
         print(args.data_dir)
         return 0
-    browser_host = "127.0.0.1" if args.host in {"0.0.0.0", "::"} else args.host
+    browser_host = "127.0.0.1" if args.host == "0.0.0.0" else "::1" if args.host == "::" else args.host
+    if ":" in browser_host:
+        browser_host = f"[{browser_host}]"
     address = f"http://{browser_host}:{args.port}"
     if not args.no_open_browser and not no_browser():
         threading.Thread(target=_open_browser, args=(address,), daemon=True).start()
     print(f"LMMock listening at {address}")
     print(f"OpenAI-compatible base URL: {address}/openai/v1")
     print(f"Anthropic base URL: {address}/anthropic")
+    print(f"Gemini base URL: {address}/gemini")
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
-        print("Warning: LMMock is listening beyond localhost. Configure optional per-model API keys in the web UI.")
+        print("Warning: LMMock is listening beyond localhost. The management UI has no authentication; use a trusted network.")
     uvicorn.run(create_app(Path(args.data_dir)), host=args.host, port=args.port, log_level="info")
     return 0
