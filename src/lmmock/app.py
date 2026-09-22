@@ -292,6 +292,14 @@ async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, resp
 def create_app(storage_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="LMMock", version=__version__, docs_url=None, redoc_url=None)
 
+    @app.middleware("http")
+    async def protect_management_writes(request: Request, call_next):
+        if request.url.path.startswith("/__lmmock/api/") and request.method not in {"GET", "HEAD", "OPTIONS"}:
+            origin = request.headers.get("origin")
+            if request.headers.get("sec-fetch-site") == "cross-site" or (origin and origin != str(request.base_url).rstrip("/")):
+                return JSONResponse({"error": "Cross-origin management writes are not allowed"}, status_code=403)
+        return await call_next(request)
+
     @app.exception_handler(HTTPException)
     async def request_error(request: Request, exc: HTTPException) -> Response:
         if request.url.path.startswith("/__lmmock/"):

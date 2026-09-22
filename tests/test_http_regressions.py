@@ -131,3 +131,18 @@ async def test_large_chunked_body_is_rejected_before_buffering_all(client, monke
     response = await client.post("/gemini/v1beta/models/test:generateContent", content=b" " * 1025)
     assert response.status_code == 413
     assert response.json()["error"]["code"] == 413
+
+
+@pytest.mark.parametrize("headers", [{"origin": "https://untrusted.example"}, {"origin": "null"}, {"sec-fetch-site": "cross-site"}])
+async def test_cross_site_management_writes_are_blocked(client, headers):
+    before = (await client.get("/__lmmock/api/rules")).json()
+    for method, path in (("POST", "/__lmmock/api/rules"), ("PUT", "/__lmmock/api/settings"), ("DELETE", f"/__lmmock/api/rules/{before[0]['id']}")):
+        response = await client.request(method, path, json={}, headers=headers)
+        assert response.status_code == 403
+    assert (await client.get("/__lmmock/api/rules")).json() == before
+
+
+async def test_same_origin_and_direct_management_calls_still_work(client):
+    for headers in ({}, {"origin": "http://test", "sec-fetch-site": "same-origin"}):
+        response = await client.post("/__lmmock/api/rules", json={"name": "Allowed"}, headers=headers)
+        assert response.status_code == 201

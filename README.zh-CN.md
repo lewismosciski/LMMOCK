@@ -168,6 +168,8 @@ python3 run.py --host 0.0.0.0
 
 然后打开 Configuration，按需为每个模型设置不同的 Mock API Key。Key 会直接显示在网页中，并保存在本地 SQLite 数据库；它保护该模型的生成与 Token 计数请求，模型列表、管理页面和管理 API 始终开放。
 
+管理接口会拒绝跨源网页的写入请求。这不等于身份验证，请仅在可信网络中开放服务。
+
 ## 参与贡献
 
 我们非常欢迎任何形式、任何规模的贡献。欢迎提交 Issue 或 Pull Request，参见 [CONTRIBUTING.md](CONTRIBUTING.md)。

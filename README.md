@@ -168,6 +168,8 @@ python3 run.py --host 0.0.0.0
 
 Then open Configuration and optionally set a different Mock API key for each model. Keys are intentionally visible in the web UI and stored in the local SQLite database. They protect generation and token-count requests for their model; model discovery, the management UI, and management API remain open.
 
+The UI rejects cross-origin management writes. This is not authentication: only expose the service on trusted networks.
+
 ## Contributing
 
 Contributions of every size are very welcome. Issues and pull requests are always appreciated—see [CONTRIBUTING.md](CONTRIBUTING.md).
