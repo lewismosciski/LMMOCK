@@ -94,10 +94,11 @@ class Store:
             )
             conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             now = self._now()
-            conn.execute(
-                "INSERT OR IGNORE INTO groups(name,description,created_at,updated_at) VALUES (?,?,?,?)",
-                (DEFAULT_GROUP["name"], DEFAULT_GROUP["description"], now, now),
-            )
+            if conn.execute("SELECT 1 FROM groups LIMIT 1").fetchone() is None:
+                conn.execute(
+                    "INSERT INTO groups(name,description,created_at,updated_at) VALUES (?,?,?,?)",
+                    (DEFAULT_GROUP["name"], DEFAULT_GROUP["description"], now, now),
+                )
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(rules)").fetchall()}
             if "group_id" not in columns:
                 conn.execute("ALTER TABLE rules ADD COLUMN group_id INTEGER")

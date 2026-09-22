@@ -39,3 +39,11 @@ def test_deleted_rules_stay_deleted_after_restart(tmp_path):
     for rule in store.list_rules():
         store.delete_rule(rule["id"])
     assert Store(path).list_rules() == []
+
+
+def test_renaming_default_group_does_not_create_another_on_restart(tmp_path):
+    path = tmp_path / "state.db"
+    store = Store(path)
+    group = store.list_groups()[0]
+    store.update_group(group["id"], {"name": "My mocks"})
+    assert [item["name"] for item in Store(path).list_groups()] == ["My mocks"]
