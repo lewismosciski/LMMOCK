@@ -450,7 +450,10 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         auth_error = authentication_error("anthropic", request, config)
         if auth_error:
             return auth_error
-        semantic = request_from("anthropic", "messages", body)
+        try:
+            semantic = request_from("anthropic", "messages", body)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
         return JSONResponse({"input_tokens": _token_count(semantic.text)})
 
     @app.get("/openai/v1/models")
@@ -554,12 +557,18 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     async def preview(request: Request) -> Response:
         data = await _read_json(request)
         protocol = data.get("protocol", "openai_chat")
+        if not isinstance(protocol, str):
+            raise HTTPException(400, "protocol must be a string")
         mapping = {"openai_chat": ("openai", "chat"), "openai_completions": ("openai", "completions"), "openai_responses": ("openai", "responses"), "anthropic_messages": ("anthropic", "messages"), "gemini_generate_content": ("gemini", "generateContent")}
         provider, operation = mapping.get(protocol, ("openai", "chat"))
-        semantic = request_from(provider, operation, data.get("body", {}))
+        try:
+            semantic = request_from(provider, operation, data.get("body", {}))
+            selected_group = int(data["group_id"]) if data.get("group_id") else None
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
         settings = store.get_settings()
         config = configured_model(settings, semantic.model, provider)
-        group_ids = [int(data["group_id"])] if data.get("group_id") else (config["group_ids"] if config else [])
+        group_ids = [selected_group] if selected_group is not None else (config["group_ids"] if config else [])
         rules = [rule for group_id in group_ids for rule in store.list_rules(group_id)]
         rules.sort(key=lambda item: (item["priority"], item["id"]))
         rule, reply = resolve(rules, semantic)

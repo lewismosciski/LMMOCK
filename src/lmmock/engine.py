@@ -53,6 +53,28 @@ def _part_text(value: Any) -> str:
 
 
 def request_from(provider: str, operation: str, body: dict[str, Any]) -> SemanticRequest:
+    if not isinstance(body, dict):
+        raise ValueError("Request body must be an object")
+    if "model" in body and (not isinstance(body["model"], str) or not body["model"].strip()):
+        raise ValueError("model must be a non-empty string")
+    if body.get("stream") is not None and not isinstance(body["stream"], bool):
+        raise ValueError("stream must be a boolean")
+    if body.get("stream_options") is not None and not isinstance(body["stream_options"], dict):
+        raise ValueError("stream_options must be an object")
+    if operation in {"chat", "messages"}:
+        messages = body.get("messages", [])
+        if not isinstance(messages, list) or any(not isinstance(message, dict) for message in messages):
+            raise ValueError("messages must be an array of objects")
+        for message in messages:
+            content = message.get("content")
+            if content is not None and not isinstance(content, (str, list)):
+                raise ValueError("Message content must be text or an array of parts")
+            if isinstance(content, list) and any(not isinstance(part, dict) for part in content):
+                raise ValueError("Content parts must be objects")
+            if message.get("tool_calls") is not None and not isinstance(message["tool_calls"], list):
+                raise ValueError("tool_calls must be an array")
+    if operation == "responses" and not isinstance(body.get("input", ""), (str, list)):
+        raise ValueError("input must be text or an array")
     if provider == "openai" and operation == "chat":
         pieces = []
         for message in body.get("messages", []):
@@ -60,7 +82,7 @@ def request_from(provider: str, operation: str, body: dict[str, Any]) -> Semanti
                 text = _part_text(message.get("content", ""))
                 if text:
                     pieces.append(f"{message.get('role', 'message')}: {text}")
-                for call in message.get("tool_calls", []):
+                for call in message.get("tool_calls") or []:
                     pieces.append(f"tool_call: {call}")
         text = "\n".join(pieces)
     elif provider == "openai" and operation == "completions":
