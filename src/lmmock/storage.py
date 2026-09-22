@@ -371,6 +371,16 @@ class Store:
             if type(status) is not int or not 400 <= status <= 599:
                 raise ValueError("Error status_code must be an integer between 400 and 599")
             result["reply"]["status_code"] = status
+        if result["reply_type"] == "tool":
+            arguments = result["reply"].get("arguments", {})
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError as exc:
+                    raise ValueError("Tool arguments must be a JSON object") from exc
+            if not isinstance(arguments, dict):
+                raise ValueError("Tool arguments must be a JSON object")
+            result["reply"]["arguments"] = arguments
         if result["reply_type"] == "random":
             result["reply"]["size"] = max(0, min(int(result["reply"].get("size", 4096)), 10_000_000))
         result["delay_ms"] = max(0, min(int(result.get("delay_ms", 0)), 30_000))

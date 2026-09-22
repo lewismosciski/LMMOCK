@@ -58,3 +58,15 @@ async def test_bad_regex_is_rejected_without_changing_rule(client):
 async def test_error_rules_require_valid_http_status(client, status):
     response = await client.post("/__lmmock/api/rules", json={"reply_type": "error", "reply": {"status_code": status}})
     assert response.status_code == 400
+
+
+@pytest.mark.parametrize("arguments", [[], 1, None, "{", '"text"'])
+async def test_tool_arguments_require_object(client, arguments):
+    response = await client.post("/__lmmock/api/rules", json={"reply_type": "tool", "reply": {"arguments": arguments}})
+    assert response.status_code == 400
+
+
+async def test_json_string_tool_arguments_are_normalized(client):
+    response = await client.post("/__lmmock/api/rules", json={"reply_type": "tool", "reply": {"arguments": '{"city":"Shanghai"}'}})
+    assert response.status_code == 201
+    assert response.json()["reply"]["arguments"] == {"city": "Shanghai"}
