@@ -102,3 +102,13 @@ async def test_stream_tool_ids_match_recent_request(client, path, body, kind):
     else:
         block = next(event["content_block"] for event in events if event["type"] == "content_block_start")
         assert block["id"] == saved["content"][0]["id"]
+
+
+async def test_non_ascii_mock_key_does_not_crash_authentication(client):
+    settings = (await client.get("/__lmmock/api/settings")).json()
+    settings["model_configs"][0]["api_key"] = "café"
+    await client.put("/__lmmock/api/settings", json=settings)
+    denied = await client.post("/openai/v1/chat/completions", json={}, headers={"authorization": "Bearer wrong"})
+    assert denied.status_code == 401
+    accepted = await client.post("/openai/v1/chat/completions", json={}, headers={b"authorization": b"Bearer caf\xe9"})
+    assert accepted.status_code == 200

@@ -319,7 +319,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         supplied = bearer or request.headers.get("x-api-key", "")
         if provider == "gemini":
             supplied = request.headers.get("x-goog-api-key") or request.query_params.get("key", "")
-        if supplied and secrets.compare_digest(supplied, required_key):
+        if supplied and secrets.compare_digest(supplied.encode("utf-8"), required_key.encode("utf-8")):
             return None
         error = SemanticReply("error", text=f"A valid API key is required for model '{config['name']}'.", status_code=401, error_type="authentication_error")
         return _error(provider, error, _id("req"))
