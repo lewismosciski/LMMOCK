@@ -257,7 +257,12 @@ function buildPlaygroundRequest() {
 }
 
 function renderPlaygroundRequest() {
-  $('playground-request').textContent = JSON.stringify(buildPlaygroundRequest().preview, null, 2);
+  const preview = JSON.stringify(buildPlaygroundRequest().preview, null, 2);
+  if ($('playground-request').textContent !== preview) {
+    $('playground-output').textContent = t('noRequestYet');
+    $('playground-meta').textContent = '';
+  }
+  $('playground-request').textContent = preview;
 }
 
 async function initialize() {
@@ -325,12 +330,21 @@ $('settings-form').addEventListener('submit', async (event) => {
 
 $('playground-send').addEventListener('click', async () => {
   const button = $('playground-send'); button.disabled = true; const started = performance.now();
+  let preview;
   try {
     const request = buildPlaygroundRequest(); renderPlaygroundRequest();
+    preview = $('playground-request').textContent;
     const response = await fetch(request.path, { method: 'POST', headers: request.preview.headers, body: JSON.stringify(request.body) });
     const data = await response.json(); const duration = Math.round(performance.now() - started);
-    $('playground-output').textContent = JSON.stringify({ status: response.status, duration_ms: duration, body: data }, null, 2); $('playground-meta').textContent = `${response.status} · ${duration}ms`; await loadRequests();
-  } catch (error) { $('playground-output').textContent = JSON.stringify({ error: error.message }, null, 2); $('playground-meta').textContent = t('requestFailed'); } finally { button.disabled = false; }
+    if ($('playground-request').textContent === preview) {
+      $('playground-output').textContent = JSON.stringify({ status: response.status, duration_ms: duration, body: data }, null, 2); $('playground-meta').textContent = `${response.status} · ${duration}ms`;
+    }
+    await loadRequests();
+  } catch (error) {
+    if ($('playground-request').textContent === preview) {
+      $('playground-output').textContent = JSON.stringify({ error: error.message }, null, 2); $('playground-meta').textContent = t('requestFailed');
+    }
+  } finally { button.disabled = false; }
 });
 
 $('refresh-requests').addEventListener('click', () => loadRequests().catch((error) => toast(error.message)));
