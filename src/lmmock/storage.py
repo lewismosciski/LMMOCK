@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import re
+import regex as re
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -359,7 +359,7 @@ class Store:
         result["match_value"] = str(result.get("match_value", ""))[:4000]
         if result["match_type"] == "regex":
             try:
-                re.compile(result["match_value"], re.IGNORECASE | re.DOTALL)
+                re.compile(result["match_value"], re.IGNORECASE | re.DOTALL | re.VERSION0)
             except re.error as exc:
                 raise ValueError(f"Invalid regular expression: {exc}") from exc
         result["reply_type"] = str(result["reply_type"])

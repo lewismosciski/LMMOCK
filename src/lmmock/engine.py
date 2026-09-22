@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import random
 import re
+import time
+import regex
 from fnmatch import fnmatchcase
 from dataclasses import dataclass
 from typing import Any
@@ -146,6 +148,7 @@ def _template(value: Any, variables: dict[str, str]) -> Any:
 
 
 def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict[str, Any] | None, SemanticReply | None]:
+    regex_deadline = time.monotonic() + 0.05
     for rule in rules:
         if not rule.get("enabled", True):
             continue
@@ -162,9 +165,12 @@ def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict
         elif kind == "contains":
             match = needle.lower() in request.text.lower()
         elif kind == "regex":
+            remaining = regex_deadline - time.monotonic()
+            if remaining <= 0:
+                continue
             try:
-                match = re.search(needle, request.text, re.IGNORECASE | re.DOTALL)
-            except re.error:
+                match = regex.search(needle, request.text, regex.IGNORECASE | regex.DOTALL | regex.VERSION0, timeout=remaining)
+            except (regex.error, TimeoutError):
                 match = False
         if not match:
             continue
