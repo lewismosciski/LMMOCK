@@ -198,11 +198,11 @@ def _gemini_model(name: str) -> dict[str, Any]:
     return {"name": f"models/{name}", "displayName": name, "supportedGenerationMethods": ["generateContent", "streamGenerateContent", "countTokens"]}
 
 
-async def _chat_stream(request: SemanticRequest, reply: SemanticReply, response_id: str, include_usage: bool) -> AsyncIterator[bytes]:
-    base = {"id": response_id, "object": "chat.completion.chunk", "created": int(time.time()), "model": request.model}
+async def _chat_stream(request: SemanticRequest, reply: SemanticReply, response_id: str, include_usage: bool, payload: dict[str, Any]) -> AsyncIterator[bytes]:
+    base = {"id": response_id, "object": "chat.completion.chunk", "created": payload["created"], "model": request.model}
     yield _sse({**base, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]})
     if reply.kind == "tool":
-        call_id = _id("call")
+        call_id = payload["choices"][0]["message"]["tool_calls"][0]["id"]
         yield _sse({**base, "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": call_id, "type": "function", "function": {"name": reply.tool_name, "arguments": ""}}]}, "finish_reason": None}]})
         arguments = _json(reply.arguments or {})
         for start in range(0, len(arguments), 32):
@@ -229,7 +229,7 @@ async def _completion_stream(request: SemanticRequest, reply: SemanticReply, res
     yield b"data: [DONE]\n\n"
 
 
-async def _responses_stream(request: SemanticRequest, reply: SemanticReply, response_id: str) -> AsyncIterator[bytes]:
+async def _responses_stream(request: SemanticRequest, reply: SemanticReply, response_id: str, payload: dict[str, Any]) -> AsyncIterator[bytes]:
     sequence = 0
 
     def event(kind: str, **values: Any) -> bytes:
@@ -239,13 +239,12 @@ async def _responses_stream(request: SemanticRequest, reply: SemanticReply, resp
         payload.update(values)
         return _sse(payload, kind)
 
-    in_progress = {"id": response_id, "object": "response", "created_at": int(time.time()), "status": "in_progress", "model": request.model, "output": []}
+    in_progress = {"id": response_id, "object": "response", "created_at": payload["created_at"], "status": "in_progress", "model": request.model, "output": []}
     yield event("response.created", response=in_progress)
     yield event("response.in_progress", response=in_progress)
-    item_id = _id("msg")
+    item_id = payload["output"][0]["id"]
     if reply.kind == "tool":
-        item_id = _id("fc")
-        call_id = _id("call")
+        call_id = payload["output"][0]["call_id"]
         yield event("response.output_item.added", output_index=0, item={"id": item_id, "type": "function_call", "status": "in_progress", "call_id": call_id, "name": reply.tool_name, "arguments": ""})
         arguments = _json(reply.arguments or {})
         for start in range(0, len(arguments), 32):
@@ -262,16 +261,13 @@ async def _responses_stream(request: SemanticRequest, reply: SemanticReply, resp
         yield event("response.content_part.done", item_id=item_id, output_index=0, content_index=0, part=content)
         final_item = {"id": item_id, "type": "message", "status": "completed", "role": "assistant", "content": [content]}
     yield event("response.output_item.done", output_index=0, item=final_item)
-    completed = _responses_payload(request, reply, response_id)
-    completed["output"] = [final_item]
-    yield event("response.completed", response=completed)
+    yield event("response.completed", response=payload)
 
 
-async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, response_id: str) -> AsyncIterator[bytes]:
-    message = _anthropic_payload(request, reply, response_id)
+async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, response_id: str, message: dict[str, Any]) -> AsyncIterator[bytes]:
     yield _sse({"type": "message_start", "message": {**message, "content": [], "stop_reason": None}}, "message_start")
     if reply.kind == "tool":
-        block = {"type": "tool_use", "id": _id("toolu"), "name": reply.tool_name, "input": {}}
+        block = {**message["content"][0], "input": {}}
         yield _sse({"type": "content_block_start", "index": 0, "content_block": block}, "content_block_start")
         arguments = _json(reply.arguments or {})
         for start in range(0, len(arguments), 32):
@@ -407,7 +403,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
             if semantic.stream:
                 include_usage = bool((body.get("stream_options") or {}).get("include_usage"))
-                return StreamingResponse(_chat_stream(semantic, reply, response_id, include_usage), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
+                return StreamingResponse(_chat_stream(semantic, reply, response_id, include_usage, payload), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
             return JSONResponse(payload, headers={"x-request-id": request_id})
         if operation == "completions":
             payload = _completion_payload(semantic, reply, response_id)
@@ -419,12 +415,12 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             payload = _responses_payload(semantic, reply, response_id)
             record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
             if semantic.stream:
-                return StreamingResponse(_responses_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
+                return StreamingResponse(_responses_stream(semantic, reply, response_id, payload), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
             return JSONResponse(payload, headers={"x-request-id": request_id})
         payload = _anthropic_payload(semantic, reply, response_id)
         record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
         if semantic.stream:
-            return StreamingResponse(_anthropic_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "request-id": request_id})
+            return StreamingResponse(_anthropic_stream(semantic, reply, response_id, payload), media_type="text/event-stream", headers={"cache-control": "no-cache", "request-id": request_id})
         return JSONResponse(payload, headers={"request-id": request_id})
 
     @app.post("/openai/v1/chat/completions")
