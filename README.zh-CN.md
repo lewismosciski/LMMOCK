@@ -48,13 +48,13 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 
 你只需要配置模型、添加规则，再把应用的 SDK 指向 LMMock。
 
-<p align="center"><img src=".github/assets/lmmock-ui.png" alt="LMMock v0.3.1 深色工作台：模型配置、规则编辑器与请求响应 Playground" width="100%"></p>
+<p align="center"><img src=".github/assets/lmmock-ui.png" alt="LMMock 深色工作台：模型配置、规则编辑器与独占整行的请求响应 Playground" width="100%"></p>
 
 1. 在**模型、接口与 API 密钥**中保留应用原本使用的模型名，选择 OpenAI 兼容、Anthropic 或 Gemini 接口，并绑定一个或多个行为组。
 2. 在**规则**中选择模板，或者自行设置匹配条件和回复。规则可以返回文本、JSON、工具调用、错误或指定大小的随机数据。
 3. 修改 SDK Base URL：分别使用 `http://127.0.0.1:17321/openai/v1`、`http://127.0.0.1:17321/anthropic` 或 `http://127.0.0.1:17321/gemini`。
 
-使用 Playground 可以立即验证规则，左右对照请求与响应；最近请求会展示完整请求、响应和 Token 估算。工作台默认英文、深色界面，点击 **EN** 即可切换中文。
+规则下方的 Playground 独占整行，方便左右对照请求与响应；最近请求会展示完整交互和 Token 估算。工作台默认英文、夜间模式，右上角可切换语言及日间／夜间模式，并记住你的选择。
 
 每次请求的正则匹配预算为 50 ms。超时规则会被跳过，文本匹配和兜底规则仍可生效。
 JSON 请求体上限为 16 MiB，分块上传同样受此限制。

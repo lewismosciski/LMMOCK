@@ -39,3 +39,7 @@ async def test_ui_controls_and_navigation_remain_connected(app):
     assert controls.ids.index("model-configs") < controls.ids.index("rule-form")
     assert controls.ids.index("playground-request") < controls.ids.index("playground-output")
     assert "color-scheme: dark" in css.text
+    assert 'data-theme="dark"' in page.text
+    assert 'id="theme-toggle"' in page.text
+    assert 'class="workspace-nav"' not in page.text
+    assert 'color-scheme: light' in css.text
