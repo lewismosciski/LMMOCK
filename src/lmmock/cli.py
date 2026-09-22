@@ -29,10 +29,10 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command")
     serve = sub.add_parser("serve", help="start the mock server")
     for target in (parser, serve):
-        target.add_argument("--host", default=host())
-        target.add_argument("--port", type=int, default=port())
-        target.add_argument("--data-dir", default=str(data_dir()))
-        target.add_argument("--no-open-browser", action="store_true")
+        target.add_argument("--host", default=argparse.SUPPRESS if target is serve else host())
+        target.add_argument("--port", type=int, default=argparse.SUPPRESS if target is serve else port())
+        target.add_argument("--data-dir", default=argparse.SUPPRESS if target is serve else str(data_dir()))
+        target.add_argument("--no-open-browser", action="store_true", default=argparse.SUPPRESS if target is serve else False)
     sub.add_parser("version")
     sub.add_parser("data-dir")
     args = parser.parse_args(argv)
@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         print(__version__)
         return 0
     if args.command == "data-dir":
-        print(data_dir())
+        print(args.data_dir)
         return 0
     browser_host = "127.0.0.1" if args.host in {"0.0.0.0", "::"} else args.host
     address = f"http://{browser_host}:{args.port}"
