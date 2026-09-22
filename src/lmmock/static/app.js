@@ -337,7 +337,12 @@ $('refresh-requests').addEventListener('click', () => loadRequests().catch((erro
 $('clear-requests').addEventListener('click', async () => { try { await api('/requests', { method: 'DELETE' }); await loadRequests(); toast(t('listCleared')); } catch (error) { toast(error.message); } });
 $('close-request-dialog').addEventListener('click', () => $('request-dialog').close());
 $('request-dialog').addEventListener('click', (event) => { if (event.target === $('request-dialog')) $('request-dialog').close(); });
-for (const button of document.querySelectorAll('[data-copy]')) button.addEventListener('click', async () => { try { await navigator.clipboard.writeText(button.dataset.copy); toast(t('copied')); } catch (_) { toast(button.dataset.copy); } });
+for (const button of document.querySelectorAll('[data-copy]')) {
+  const path = new URL(button.dataset.copy).pathname;
+  button.dataset.copy = `${location.origin}${path}`;
+  button.querySelector('code').textContent = `${location.host}${path}`;
+  button.addEventListener('click', async () => { try { await navigator.clipboard.writeText(button.dataset.copy); toast(t('copied')); } catch (_) { toast(button.dataset.copy); } });
+}
 
 setForm(); applyLanguage(); initialize();
 setInterval(() => loadRequests().catch(() => {}), 5000);
