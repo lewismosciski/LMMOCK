@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lewismosciski/LMMOCK/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/lewismosciski/LMMOCK/ci.yml?branch=main&style=flat-square&label=tests" alt="Tests"></a>
-  <a href="https://github.com/lewismosciski/LMMOCK/releases"><img src="https://img.shields.io/github/v/release/lewismosciski/LMMOCK?include_prereleases&style=flat-square" alt="Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
+  <a href="https://github.com/lewismosciski/LMMOCK/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/lewismosciski/LMMOCK/ci.yml?branch=main&style=flat&label=tests&labelColor=24262b&color=79b894" alt="Tests"></a>
+  <a href="https://github.com/lewismosciski/LMMOCK/releases"><img src="https://img.shields.io/github/v/release/lewismosciski/LMMOCK?include_prereleases&style=flat&labelColor=24262b&color=8ab4d6" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-b5a0d6?style=flat&labelColor=24262b" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/python-3.11%2B-d6bd80?style=flat&labelColor=24262b&logo=python&logoColor=white" alt="Python 3.11+">
 </p>
 
 LMMock gives AI applications deterministic model replies without changing their SDK calls. Configure models, interfaces, behavior groups, and rules in the browser, then run the real application without provider tokens.
@@ -48,13 +48,13 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 
 You only need to configure a model, add a rule, and point your application's SDK to LMMock.
 
-<p align="center"><img src=".github/assets/lmmock-ui.png" alt="LMMock browser interface" width="100%"></p>
+<p align="center"><img src=".github/assets/lmmock-ui.png" alt="LMMock v0.3.1 dark workspace with model configuration, rule editor, and request/response Playground" width="100%"></p>
 
 1. In **Models, interfaces & API keys**, keep the model name used by your app, choose OpenAI-compatible, Anthropic, or Gemini, and assign one or more behavior groups.
 2. In **Rules**, select a template or define what to match and what LMMock should return. Rules can return text, JSON, tool calls, errors, or exact-size random data.
 3. Change the SDK Base URL: use `http://127.0.0.1:17321/openai/v1`, `http://127.0.0.1:17321/anthropic`, or `http://127.0.0.1:17321/gemini` for the corresponding client.
 
-Use the Playground to try a rule immediately. Recent requests shows the full request, response, and estimated token usage.
+Use the Playground to try a rule immediately, with the request and response side by side. Recent requests shows the full request, response, and estimated token usage. The workspace starts in English with a dark theme; use **EN** to switch languages.
 
 Regex matching has a 50 ms budget per request. Rules that time out are skipped; text and fallback rules can still match.
 JSON request bodies are limited to 16 MiB, including chunked uploads.

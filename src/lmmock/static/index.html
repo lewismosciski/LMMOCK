@@ -3,17 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b1220">
+  <meta name="theme-color" content="#111214">
   <title>LMMock · Local LLM mock server</title>
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#models-section" data-i18n="skipToContent">Skip to workspace</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="LMMock home">
       <img src="/static/logo.svg" alt="" width="38" height="38">
       <strong>LMMock</strong>
     </a>
+    <nav class="workspace-nav" aria-label="Workspace">
+      <a href="#models-section" data-i18n="ruleModels">Models</a>
+      <a href="#rules-section" data-i18n="rules">Rules</a>
+      <a href="#playground-section">Playground</a>
+      <a href="#activity-section" data-i18n="totalRequests">Requests</a>
+    </nav>
     <div class="topbar-actions">
       <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch language">EN</button>
     </div>
@@ -39,14 +46,30 @@
     </section>
 
     <main class="workspace">
-      <section class="panel rules-panel">
+      <section id="models-section" class="panel settings-panel" aria-labelledby="models-title" tabindex="-1">
+        <div class="panel-heading settings-heading">
+          <div><h2 id="models-title" data-i18n="modelsInterfacesSecurity">Models, interfaces &amp; API keys</h2><p data-i18n="configurationHelp">Each model owns its interface, key, and behavior groups.</p></div>
+          <button id="add-model" type="button" class="button secondary" data-i18n="addModel">Add model</button>
+        </div>
+        <form id="settings-form">
+          <section class="settings-section">
+            <div id="model-configs" class="model-configs"></div>
+          </section>
+          <div class="settings-footer">
+            <small data-i18n="configuredModelsHelp">Keep your app's model names. Assign at least one behavior group.</small>
+            <button type="submit" class="button primary" data-i18n="saveSettings">Save settings</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="rules-section" class="panel rules-panel" aria-labelledby="rules-title">
         <div class="panel-heading">
-          <div><p class="kicker">01</p><h2 data-i18n="rules">Rules</h2><p data-i18n="rulesHelp">Lowest priority number wins.</p></div>
+          <div><h2 id="rules-title" data-i18n="rules">Rules</h2><p data-i18n="rulesHelp">Lowest priority number wins.</p></div>
           <button id="new-rule" class="button primary" data-i18n="newRule">New rule</button>
         </div>
         <div class="group-bar">
           <label><span data-i18n="behaviorGroup">Behavior group</span><select id="group-select"></select></label>
-          <button id="edit-group" class="icon-button" type="button" title="Edit behavior group">✎</button>
+          <button id="edit-group" class="icon-button" type="button" title="Edit behavior group" aria-label="Edit behavior group"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l5-1L20 8a2.8 2.8 0 0 0-4-4L5 15Z"/></svg></button>
           <button id="new-group" class="button secondary" type="button" data-i18n="newGroup">New group</button>
         </div>
         <div class="template-heading"><strong data-i18n="startTemplate">Start from a template</strong><small data-i18n="templateHelp">Choose one, adjust it, then save.</small></div>
@@ -57,7 +80,7 @@
 
       <section class="panel editor-panel">
         <div class="panel-heading">
-          <div><p class="kicker">02</p><h2 id="editor-title">New rule</h2><p data-i18n="editorHelp">Match a request and return a fixed result.</p></div>
+          <div><h2 id="editor-title">New rule</h2><p data-i18n="editorHelp">Match a request and return a fixed result.</p></div>
           <label class="switch"><input id="enabled" type="checkbox" checked><span></span><b data-i18n="enabled">Enabled</b></label>
         </div>
         <form id="rule-form">
@@ -99,45 +122,30 @@
         </form>
       </section>
 
-      <section class="panel playground-panel">
-        <div class="panel-heading compact"><div><p class="kicker">03</p><h2>Playground</h2><p data-i18n="playgroundHelp">Send one request through the real endpoint.</p></div></div>
+      <section id="playground-section" class="panel playground-panel" aria-labelledby="playground-title">
+        <div class="panel-heading compact"><div><h2 id="playground-title">Playground</h2><p data-i18n="playgroundHelp">Send one request through the real endpoint.</p></div></div>
         <div class="field-grid three playground-fields">
           <label><span data-i18n="endpoint">Endpoint</span><select id="playground-endpoint"><option value="chat">OpenAI Chat</option><option value="completions">OpenAI Completions</option><option value="responses">OpenAI Responses</option><option value="messages">Anthropic Messages</option><option value="generateContent">Gemini Generate Content</option></select></label>
           <label><span data-i18n="model">Model</span><select id="playground-model"></select></label>
           <label><span data-i18n="input">Input</span><textarea id="playground-input" rows="3">weather in Shanghai</textarea></label>
         </div>
-        <div class="playground-actions"><button id="playground-send" class="button secondary" data-i18n="sendRequest">Send request</button><span id="playground-meta"></span></div>
+        <div class="playground-actions"><button id="playground-send" class="button primary" data-i18n="sendRequest">Send request</button><span id="playground-meta" role="status"></span></div>
         <div class="playground-io">
           <section><h3 data-i18n="requestPreview">Request</h3><pre id="playground-request" class="output"></pre></section>
           <section><h3 data-i18n="responsePreview">Response</h3><pre id="playground-output" class="output">No request yet.</pre></section>
         </div>
       </section>
 
-      <section class="panel activity-panel">
+      <section id="activity-section" class="panel activity-panel" aria-labelledby="activity-title">
         <div class="panel-heading compact">
-          <div><p class="kicker">04</p><h2 data-i18n="recentRequests">Recent requests</h2><p data-i18n="recentHelp">Select one to inspect its request and response.</p></div>
-          <div class="heading-actions"><button id="refresh-requests" class="icon-button" title="Refresh">↻</button><button id="clear-requests" class="text-button" data-i18n="clear">Clear</button></div>
+          <div><h2 id="activity-title" data-i18n="recentRequests">Recent requests</h2><p data-i18n="recentHelp">Select one to inspect its request and response.</p></div>
+          <div class="heading-actions"><button id="refresh-requests" class="icon-button" title="Refresh" aria-label="Refresh requests"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/></svg></button><button id="clear-requests" class="text-button" data-i18n="clear">Clear</button></div>
         </div>
         <div id="token-stats" class="token-stats" aria-live="polite"></div>
         <div id="model-token-stats" class="model-token-stats"></div>
         <div id="requests" class="requests"></div>
       </section>
 
-      <section class="panel settings-panel">
-        <div class="panel-heading settings-heading">
-          <div><p class="kicker" data-i18n="configuration">CONFIGURATION</p><h2 data-i18n="modelsInterfacesSecurity">Models, interfaces &amp; API keys</h2><p data-i18n="configurationHelp">Each model owns its interface, key, and behavior groups.</p></div>
-          <button id="add-model" type="button" class="button secondary" data-i18n="addModel">Add model</button>
-        </div>
-        <form id="settings-form">
-          <section class="settings-section">
-            <div class="settings-section-title"><strong data-i18n="configuredModels">Configured models</strong><small data-i18n="configuredModelsHelp">Keep the names already used by your application. Assign at least one behavior group to each model.</small></div>
-            <div id="model-configs" class="model-configs"></div>
-          </section>
-          <div class="settings-footer">
-            <button type="submit" class="button primary" data-i18n="saveSettings">Save settings</button>
-          </div>
-        </form>
-      </section>
     </main>
   </div>
 
