@@ -19,12 +19,20 @@ from .engine import SemanticReply, SemanticRequest, request_from, resolve
 from .storage import Store
 
 
+MAX_REQUEST_BYTES = 16 * 1024 * 1024
+
+
 async def _read_json(request: Request) -> dict[str, Any]:
     def reject_constant(value: str) -> None:
         raise ValueError(f"Invalid JSON constant: {value}")
 
+    raw = bytearray()
+    async for chunk in request.stream():
+        if len(raw) + len(chunk) > MAX_REQUEST_BYTES:
+            raise HTTPException(413, "Request body exceeds the 16 MiB limit")
+        raw.extend(chunk)
     try:
-        body = json.loads(await request.body(), parse_constant=reject_constant)
+        body = json.loads(raw, parse_constant=reject_constant)
     except (ValueError, RecursionError) as exc:
         raise HTTPException(400, "Request body must be valid JSON") from exc
     if not isinstance(body, dict):

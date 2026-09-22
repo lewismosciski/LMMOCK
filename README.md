@@ -57,6 +57,7 @@ You only need to configure a model, add a rule, and point your application's SDK
 Use the Playground to try a rule immediately. Recent requests shows the full request, response, and estimated token usage.
 
 Regex matching has a 50 ms budget per request. Rules that time out are skipped; text and fallback rules can still match.
+JSON request bodies are limited to 16 MiB, including chunked uploads.
 
 ## Supported APIs
 

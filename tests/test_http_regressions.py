@@ -112,3 +112,22 @@ async def test_non_ascii_mock_key_does_not_crash_authentication(client):
     assert denied.status_code == 401
     accepted = await client.post("/openai/v1/chat/completions", json={}, headers={b"authorization": b"Bearer caf\xe9"})
     assert accepted.status_code == 200
+
+
+async def test_large_chunked_body_is_rejected_before_buffering_all(client, monkeypatch):
+    import importlib
+
+    monkeypatch.setattr(importlib.import_module("lmmock.app"), "MAX_REQUEST_BYTES", 1024)
+    consumed = []
+
+    async def chunks():
+        for index in range(10):
+            consumed.append(index)
+            yield b" " * 600
+
+    response = await client.post("/__lmmock/api/rules", content=chunks())
+    assert response.status_code == 413
+    assert consumed == [0, 1]
+    response = await client.post("/gemini/v1beta/models/test:generateContent", content=b" " * 1025)
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == 413
