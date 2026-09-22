@@ -582,4 +582,10 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
+def __getattr__(name: str) -> Any:
+    # Keep `uvicorn lmmock.app:app` working without opening a database on import.
+    if name == "app":
+        application = create_app()
+        globals()[name] = application
+        return application
+    raise AttributeError(name)
