@@ -43,3 +43,12 @@ async def test_invalid_preview_returns_400(client, body):
 async def test_nullable_tool_calls_are_accepted(client):
     response = await client.post("/openai/v1/chat/completions", json={"messages": [{"role": "assistant", "content": None, "tool_calls": None}]})
     assert response.status_code == 200
+
+
+async def test_bad_regex_is_rejected_without_changing_rule(client):
+    before = (await client.get("/__lmmock/api/rules")).json()
+    for method, path in (("POST", "/__lmmock/api/rules"), ("PUT", f"/__lmmock/api/rules/{before[0]['id']}")):
+        result = await client.request(method, path, json={"match_type": "regex", "match_value": "("})
+        assert result.status_code == 400
+        assert "Invalid regular expression" in result.json()["error"]
+    assert (await client.get("/__lmmock/api/rules")).json() == before

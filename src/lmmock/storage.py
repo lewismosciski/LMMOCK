@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -356,6 +357,11 @@ class Store:
         if result["match_type"] not in {"all", "contains", "regex"}:
             raise ValueError("match_type must be all, contains, or regex")
         result["match_value"] = str(result.get("match_value", ""))[:4000]
+        if result["match_type"] == "regex":
+            try:
+                re.compile(result["match_value"], re.IGNORECASE | re.DOTALL)
+            except re.error as exc:
+                raise ValueError(f"Invalid regular expression: {exc}") from exc
         result["reply_type"] = str(result["reply_type"])
         if result["reply_type"] not in {"text", "json", "tool", "error", "random"}:
             raise ValueError("reply_type must be text, json, tool, error, or random")
