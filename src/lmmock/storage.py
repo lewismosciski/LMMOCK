@@ -105,8 +105,10 @@ class Store:
                 conn.execute("ALTER TABLE rules ADD COLUMN model_pattern TEXT NOT NULL DEFAULT '*'")
             default_group_id = conn.execute("SELECT id FROM groups ORDER BY id LIMIT 1").fetchone()["id"]
             conn.execute("UPDATE rules SET group_id=? WHERE group_id IS NULL", (default_group_id,))
-            if conn.execute("SELECT 1 FROM rules LIMIT 1").fetchone() is None:
+            initialized = conn.execute("SELECT 1 FROM settings WHERE key IN ('seed_default_rule_v1', 'seed_fool_ai_v1')").fetchone()
+            if initialized is None and conn.execute("SELECT 1 FROM rules LIMIT 1").fetchone() is None:
                 self.create_rule({**DEFAULT_RULE, "group_id": default_group_id}, conn=conn)
+            conn.execute("INSERT OR IGNORE INTO settings(key,value) VALUES ('seed_default_rule_v1', 'true')")
             seeded = conn.execute("SELECT 1 FROM settings WHERE key='seed_fool_ai_v1'").fetchone()
             if seeded is None:
                 exists = conn.execute("SELECT 1 FROM rules WHERE name=? LIMIT 1", (FOOL_AI_RULE["name"],)).fetchone()

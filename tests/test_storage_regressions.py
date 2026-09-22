@@ -31,3 +31,11 @@ def test_create_rule_respects_callers_transaction(tmp_path):
             store.create_rule({"name": "must roll back"}, conn=conn)
             raise RuntimeError("abort")
     assert all(rule["name"] != "must roll back" for rule in store.list_rules())
+
+
+def test_deleted_rules_stay_deleted_after_restart(tmp_path):
+    path = tmp_path / "state.db"
+    store = Store(path)
+    for rule in store.list_rules():
+        store.delete_rule(rule["id"])
+    assert Store(path).list_rules() == []
