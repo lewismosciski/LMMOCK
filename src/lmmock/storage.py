@@ -160,33 +160,24 @@ class Store:
             return [self._row(row) for row in rows]
 
     def create_rule(self, data: dict[str, Any], conn: sqlite3.Connection | None = None) -> dict[str, Any]:
+        if conn is None:
+            with self.lock, self._connection() as owned:
+                return self.create_rule(data, conn=owned)
         values = self._validate_rule(data)
-        own = conn is None
-        if own:
-            self.lock.acquire()
-            conn = self._connect()
-        assert conn is not None
         now = self._now()
-        try:
-            if conn.execute("SELECT 1 FROM groups WHERE id=?", (values["group_id"],)).fetchone() is None:
-                raise ValueError("group_id does not exist")
-            cur = conn.execute(
-                """INSERT INTO rules
-                (name, enabled, priority, model_pattern, scopes, match_type, match_value, reply_type, reply_json, delay_ms, group_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    values["name"], int(values["enabled"]), values["priority"], values["model_pattern"], json.dumps(values["scopes"]),
-                    values["match_type"], values["match_value"], values["reply_type"], json.dumps(values["reply"]),
-                    values["delay_ms"], values["group_id"], now, now,
-                ),
-            )
-            conn.commit()
-            row = conn.execute("SELECT * FROM rules WHERE id=?", (cur.lastrowid,)).fetchone()
-            return self._row(row)
-        finally:
-            if own:
-                conn.close()
-                self.lock.release()
+        if conn.execute("SELECT 1 FROM groups WHERE id=?", (values["group_id"],)).fetchone() is None:
+            raise ValueError("group_id does not exist")
+        cur = conn.execute(
+            """INSERT INTO rules
+            (name, enabled, priority, model_pattern, scopes, match_type, match_value, reply_type, reply_json, delay_ms, group_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                values["name"], int(values["enabled"]), values["priority"], values["model_pattern"], json.dumps(values["scopes"]),
+                values["match_type"], values["match_value"], values["reply_type"], json.dumps(values["reply"]),
+                values["delay_ms"], values["group_id"], now, now,
+            ),
+        )
+        return self._row(conn.execute("SELECT * FROM rules WHERE id=?", (cur.lastrowid,)).fetchone())
 
     def update_rule(self, rule_id: int, data: dict[str, Any]) -> dict[str, Any] | None:
         values = self._validate_rule(data)
