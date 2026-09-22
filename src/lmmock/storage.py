@@ -366,6 +366,11 @@ class Store:
         if result["reply_type"] not in {"text", "json", "tool", "error", "random"}:
             raise ValueError("reply_type must be text, json, tool, error, or random")
         result["reply"] = dict(result.get("reply") or {})
+        if result["reply_type"] == "error":
+            status = result["reply"].get("status_code", 500)
+            if type(status) is not int or not 400 <= status <= 599:
+                raise ValueError("Error status_code must be an integer between 400 and 599")
+            result["reply"]["status_code"] = status
         if result["reply_type"] == "random":
             result["reply"]["size"] = max(0, min(int(result["reply"].get("size", 4096)), 10_000_000))
         result["delay_ms"] = max(0, min(int(result.get("delay_ms", 0)), 30_000))

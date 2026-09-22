@@ -52,3 +52,9 @@ async def test_bad_regex_is_rejected_without_changing_rule(client):
         assert result.status_code == 400
         assert "Invalid regular expression" in result.json()["error"]
     assert (await client.get("/__lmmock/api/rules")).json() == before
+
+
+@pytest.mark.parametrize("status", [200, 0, 600, "bad", 400.5, True])
+async def test_error_rules_require_valid_http_status(client, status):
+    response = await client.post("/__lmmock/api/rules", json={"reply_type": "error", "reply": {"status_code": status}})
+    assert response.status_code == 400
