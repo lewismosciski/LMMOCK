@@ -264,7 +264,7 @@ async function initialize() {
   } catch (error) { toast(error.message); }
 }
 
-$('language-toggle').addEventListener('click', () => { state.language = state.language === 'en' ? 'zh' : 'en'; localStorage.setItem('lmmock-language', state.language); applyLanguage(); loadSettings().catch(() => {}); loadRequests().catch(() => {}); });
+$('language-toggle').addEventListener('click', () => { state.language = state.language === 'en' ? 'zh' : 'en'; localStorage.setItem('lmmock-language', state.language); applyLanguage(); loadRequests().catch(() => {}); });
 $('add-model').addEventListener('click', () => addModelConfig({ protocol: 'openai', group_ids: [state.activeGroupId] }));
 
 $('group-select').addEventListener('change', async () => {
