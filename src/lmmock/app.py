@@ -82,6 +82,11 @@ def _reply_output(reply: SemanticReply) -> str:
     return _json(reply.arguments or {}) if reply.kind == "tool" else reply.text
 
 
+def _completion_usage(request: SemanticRequest, reply: SemanticReply) -> dict[str, int]:
+    usage = _usage(request.text, _reply_output(reply))
+    return {"prompt_tokens": usage["input_tokens"], "completion_tokens": usage["output_tokens"], "total_tokens": usage["total_tokens"]}
+
+
 def _error_payload(provider: str, reply: SemanticReply) -> dict[str, Any]:
     if provider == "gemini":
         status = {
@@ -118,7 +123,7 @@ def _chat_payload(request: SemanticRequest, reply: SemanticReply, response_id: s
     else:
         message = {"role": "assistant", "content": reply.text}
         finish = "stop"
-    return {"id": response_id, "object": "chat.completion", "created": int(time.time()), "model": request.model, "choices": [{"index": 0, "message": message, "finish_reason": finish}], "usage": _usage(request.text, _reply_output(reply))}
+    return {"id": response_id, "object": "chat.completion", "created": int(time.time()), "model": request.model, "choices": [{"index": 0, "message": message, "finish_reason": finish}], "usage": _completion_usage(request, reply)}
 
 
 def _completion_payload(request: SemanticRequest, reply: SemanticReply, response_id: str) -> dict[str, Any]:
@@ -128,7 +133,7 @@ def _completion_payload(request: SemanticRequest, reply: SemanticReply, response
         "created": int(time.time()),
         "model": request.model,
         "choices": [{"index": 0, "text": reply.text, "finish_reason": "stop", "logprobs": None}],
-        "usage": _usage(request.text, _reply_output(reply)),
+        "usage": _completion_usage(request, reply),
     }
 
 
@@ -211,7 +216,7 @@ async def _chat_stream(request: SemanticRequest, reply: SemanticReply, response_
         finish = "stop"
     yield _sse({**base, "choices": [{"index": 0, "delta": {}, "finish_reason": finish}]})
     if include_usage:
-        yield _sse({**base, "choices": [], "usage": _usage(request.text, _reply_output(reply))})
+        yield _sse({**base, "choices": [], "usage": _completion_usage(request, reply)})
     yield b"data: [DONE]\n\n"
 
 

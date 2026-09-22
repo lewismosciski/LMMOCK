@@ -385,7 +385,7 @@ async def test_random_reply_generates_requested_size(app):
     assert len(first_text.encode("ascii")) == 4096
     assert len(second_text) == 4096
     assert first_text != second_text
-    assert first.json()["usage"]["output_tokens"] == 1024
+    assert first.json()["usage"]["completion_tokens"] == 1024
 
 
 @pytest.mark.asyncio

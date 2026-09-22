@@ -70,3 +70,14 @@ async def test_json_string_tool_arguments_are_normalized(client):
     response = await client.post("/__lmmock/api/rules", json={"reply_type": "tool", "reply": {"arguments": '{"city":"Shanghai"}'}})
     assert response.status_code == 201
     assert response.json()["reply"]["arguments"] == {"city": "Shanghai"}
+
+
+async def test_openai_completion_usage_matches_protocol(client):
+    for path, body in (("chat/completions", {"messages": [{"role": "user", "content": "hello"}]}), ("completions", {"prompt": "hello"})):
+        response = await client.post("/openai/v1/" + path, json=body)
+        usage = response.json()["usage"]
+        assert set(usage) == {"prompt_tokens", "completion_tokens", "total_tokens"}
+        assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
+    stream = await client.post("/openai/v1/chat/completions", json={"stream": True, "stream_options": {"include_usage": True}})
+    events = [json.loads(line[6:]) for line in stream.text.splitlines() if line.startswith("data: {")]
+    assert set(events[-1]["usage"]) == {"prompt_tokens", "completion_tokens", "total_tokens"}
