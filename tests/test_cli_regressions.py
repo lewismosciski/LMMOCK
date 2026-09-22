@@ -39,3 +39,26 @@ def test_cli_prints_usable_ipv6_and_provider_urls(tmp_path, monkeypatch, capsys,
     output = capsys.readouterr().out
     for path in ("openai/v1", "anthropic", "gemini"):
         assert f"http://{shown}:18432/{path}" in output
+
+
+def test_launcher_checks_runtime_imports_without_requiring_httpx(tmp_path, monkeypatch):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("launcher", Path(__file__).resolve().parents[1] / "run.py")
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+    interpreter = tmp_path / "python"
+    interpreter.touch()
+    monkeypatch.setattr(launcher, "python_bin", lambda: interpreter)
+    monkeypatch.setattr(launcher, "has_pip", lambda executable: executable == Path(sys.executable))
+    calls = []
+
+    def can_import(executable, modules, environment=None):
+        calls.append(modules)
+        return environment is not None and modules == "lmmock.cli"
+
+    monkeypatch.setattr(launcher, "can_import", can_import)
+    monkeypatch.setattr(launcher, "run", lambda *args: 0)
+    monkeypatch.setattr(launcher.subprocess, "check_call", lambda *args: pytest.fail("Runtime already imports; no reinstall needed"))
+    assert launcher.main() == 0
+    assert calls == ["lmmock.cli", "lmmock.cli"]

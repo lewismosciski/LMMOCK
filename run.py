@@ -66,7 +66,7 @@ def main() -> int:
             subprocess.check_call([str(interpreter), "-m", "pip", "install", "-e", str(ROOT)])
         elif has_pip(Path(sys.executable)):
             environment = source_environment(LOCAL_PACKAGES)
-            if not can_import(Path(sys.executable), "fastapi, httpx, uvicorn", environment):
+            if not can_import(Path(sys.executable), "lmmock.cli", environment):
                 print("The virtual environment has no pip; installing dependencies into .lmmock ...", flush=True)
                 LOCAL_PACKAGES.mkdir(parents=True, exist_ok=True)
                 subprocess.check_call([
