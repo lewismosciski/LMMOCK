@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import random
 import re
+import time
+import regex
 from fnmatch import fnmatchcase
 from dataclasses import dataclass
 from typing import Any
@@ -53,6 +55,28 @@ def _part_text(value: Any) -> str:
 
 
 def request_from(provider: str, operation: str, body: dict[str, Any]) -> SemanticRequest:
+    if not isinstance(body, dict):
+        raise ValueError("Request body must be an object")
+    if "model" in body and (not isinstance(body["model"], str) or not body["model"].strip()):
+        raise ValueError("model must be a non-empty string")
+    if body.get("stream") is not None and not isinstance(body["stream"], bool):
+        raise ValueError("stream must be a boolean")
+    if body.get("stream_options") is not None and not isinstance(body["stream_options"], dict):
+        raise ValueError("stream_options must be an object")
+    if operation in {"chat", "messages"}:
+        messages = body.get("messages", [])
+        if not isinstance(messages, list) or any(not isinstance(message, dict) for message in messages):
+            raise ValueError("messages must be an array of objects")
+        for message in messages:
+            content = message.get("content")
+            if content is not None and not isinstance(content, (str, list)):
+                raise ValueError("Message content must be text or an array of parts")
+            if isinstance(content, list) and any(not isinstance(part, dict) for part in content):
+                raise ValueError("Content parts must be objects")
+            if message.get("tool_calls") is not None and not isinstance(message["tool_calls"], list):
+                raise ValueError("tool_calls must be an array")
+    if operation == "responses" and not isinstance(body.get("input", ""), (str, list)):
+        raise ValueError("input must be text or an array")
     if provider == "openai" and operation == "chat":
         pieces = []
         for message in body.get("messages", []):
@@ -60,7 +84,7 @@ def request_from(provider: str, operation: str, body: dict[str, Any]) -> Semanti
                 text = _part_text(message.get("content", ""))
                 if text:
                     pieces.append(f"{message.get('role', 'message')}: {text}")
-                for call in message.get("tool_calls", []):
+                for call in message.get("tool_calls") or []:
                     pieces.append(f"tool_call: {call}")
         text = "\n".join(pieces)
     elif provider == "openai" and operation == "completions":
@@ -110,7 +134,28 @@ def _fool_ai(value: str) -> str:
     return f"{statement}！"
 
 
+def _last_user(request: SemanticRequest) -> str:
+    body = request.raw
+    if request.operation == "completions":
+        return _part_text(body.get("prompt", ""))
+    if request.operation == "responses":
+        value = body.get("input", "")
+        if isinstance(value, str):
+            return value
+        messages = value
+    else:
+        messages = body.get("contents" if request.provider == "gemini" else "messages", [])
+    for message in reversed(messages):
+        if isinstance(message, dict) and message.get("role", "user") == "user" and message.get("type", "message") == "message":
+            return _part_text(message.get("parts" if request.provider == "gemini" else "content", ""))
+    return ""
+
+
 def _template(value: Any, variables: dict[str, str]) -> Any:
+    if isinstance(value, dict):
+        return {key: _template(item, variables) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_template(item, variables) for item in value]
     if not isinstance(value, str):
         return value
 
@@ -124,6 +169,7 @@ def _template(value: Any, variables: dict[str, str]) -> Any:
 
 
 def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict[str, Any] | None, SemanticReply | None]:
+    regex_deadline = time.monotonic() + 0.05
     for rule in rules:
         if not rule.get("enabled", True):
             continue
@@ -140,18 +186,27 @@ def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict
         elif kind == "contains":
             match = needle.lower() in request.text.lower()
         elif kind == "regex":
+            remaining = regex_deadline - time.monotonic()
+            if remaining <= 0:
+                continue
             try:
-                match = re.search(needle, request.text, re.IGNORECASE | re.DOTALL)
-            except re.error:
+                match = regex.search(needle, request.text, regex.IGNORECASE | regex.DOTALL | regex.VERSION0, timeout=remaining)
+            except (regex.error, TimeoutError):
                 match = False
         if not match:
             continue
-        variables = {"model": request.model, "last_user": request.text[-2000:]}
+        variables = {"model": request.model, "last_user": _last_user(request)[-2000:]}
         if hasattr(match, "groupdict"):
             variables.update({key: str(value) for key, value in match.groupdict().items() if value is not None})
             variables.update({str(index): value for index, value in enumerate(match.groups(), 1) if value is not None})
-        reply_data = {key: _template(value, variables) for key, value in (rule.get("reply") or {}).items()}
         reply_type = rule.get("reply_type", "text")
+        raw_reply = dict(rule.get("reply") or {})
+        if reply_type == "json" and isinstance(raw_reply.get("content"), str):
+            try:
+                raw_reply["content"] = json.loads(raw_reply["content"])
+            except json.JSONDecodeError:
+                pass
+        reply_data = _template(raw_reply, variables)
         if reply_type == "tool":
             arguments = reply_data.get("arguments", {})
             if isinstance(arguments, str):

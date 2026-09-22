@@ -56,6 +56,9 @@ You only need to configure a model, add a rule, and point your application's SDK
 
 Use the Playground to try a rule immediately. Recent requests shows the full request, response, and estimated token usage.
 
+Regex matching has a 50 ms budget per request. Rules that time out are skipped; text and fallback rules can still match.
+JSON request bodies are limited to 16 MiB, including chunked uploads.
+
 ## Supported APIs
 
 | Provider | Endpoint | JSON | Streaming | Tool calls |
@@ -164,6 +167,8 @@ python3 run.py --host 0.0.0.0
 ```
 
 Then open Configuration and optionally set a different Mock API key for each model. Keys are intentionally visible in the web UI and stored in the local SQLite database. They protect generation and token-count requests for their model; model discovery, the management UI, and management API remain open.
+
+The UI rejects cross-origin management writes. This is not authentication: only expose the service on trusted networks.
 
 ## Contributing
 

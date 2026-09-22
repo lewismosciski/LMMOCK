@@ -1,7 +1,11 @@
 const $ = (id) => document.getElementById(id);
+function savedLanguage() {
+  try { return localStorage.getItem('lmmock-language') === 'zh' ? 'zh' : 'en'; }
+  catch (_) { return 'en'; }
+}
 const state = {
   rules: [], groups: [], settings: null, activeRuleId: null, activeGroupId: null,
-  language: localStorage.getItem('lmmock-language') || 'en',
+  language: savedLanguage(),
 };
 let toastTimer;
 
@@ -253,7 +257,12 @@ function buildPlaygroundRequest() {
 }
 
 function renderPlaygroundRequest() {
-  $('playground-request').textContent = JSON.stringify(buildPlaygroundRequest().preview, null, 2);
+  const preview = JSON.stringify(buildPlaygroundRequest().preview, null, 2);
+  if ($('playground-request').textContent !== preview) {
+    $('playground-output').textContent = t('noRequestYet');
+    $('playground-meta').textContent = '';
+  }
+  $('playground-request').textContent = preview;
 }
 
 async function initialize() {
@@ -264,7 +273,11 @@ async function initialize() {
   } catch (error) { toast(error.message); }
 }
 
-$('language-toggle').addEventListener('click', () => { state.language = state.language === 'en' ? 'zh' : 'en'; localStorage.setItem('lmmock-language', state.language); applyLanguage(); loadSettings().catch(() => {}); loadRequests().catch(() => {}); });
+$('language-toggle').addEventListener('click', () => {
+  state.language = state.language === 'en' ? 'zh' : 'en';
+  try { localStorage.setItem('lmmock-language', state.language); } catch (_) { /* Storage may be disabled. */ }
+  applyLanguage(); loadRequests().catch(() => {});
+});
 $('add-model').addEventListener('click', () => addModelConfig({ protocol: 'openai', group_ids: [state.activeGroupId] }));
 
 $('group-select').addEventListener('change', async () => {
@@ -317,19 +330,33 @@ $('settings-form').addEventListener('submit', async (event) => {
 
 $('playground-send').addEventListener('click', async () => {
   const button = $('playground-send'); button.disabled = true; const started = performance.now();
+  let preview;
   try {
     const request = buildPlaygroundRequest(); renderPlaygroundRequest();
+    preview = $('playground-request').textContent;
     const response = await fetch(request.path, { method: 'POST', headers: request.preview.headers, body: JSON.stringify(request.body) });
     const data = await response.json(); const duration = Math.round(performance.now() - started);
-    $('playground-output').textContent = JSON.stringify({ status: response.status, duration_ms: duration, body: data }, null, 2); $('playground-meta').textContent = `${response.status} · ${duration}ms`; await loadRequests();
-  } catch (error) { $('playground-output').textContent = JSON.stringify({ error: error.message }, null, 2); $('playground-meta').textContent = t('requestFailed'); } finally { button.disabled = false; }
+    if ($('playground-request').textContent === preview) {
+      $('playground-output').textContent = JSON.stringify({ status: response.status, duration_ms: duration, body: data }, null, 2); $('playground-meta').textContent = `${response.status} · ${duration}ms`;
+    }
+    await loadRequests();
+  } catch (error) {
+    if ($('playground-request').textContent === preview) {
+      $('playground-output').textContent = JSON.stringify({ error: error.message }, null, 2); $('playground-meta').textContent = t('requestFailed');
+    }
+  } finally { button.disabled = false; }
 });
 
 $('refresh-requests').addEventListener('click', () => loadRequests().catch((error) => toast(error.message)));
 $('clear-requests').addEventListener('click', async () => { try { await api('/requests', { method: 'DELETE' }); await loadRequests(); toast(t('listCleared')); } catch (error) { toast(error.message); } });
 $('close-request-dialog').addEventListener('click', () => $('request-dialog').close());
 $('request-dialog').addEventListener('click', (event) => { if (event.target === $('request-dialog')) $('request-dialog').close(); });
-for (const button of document.querySelectorAll('[data-copy]')) button.addEventListener('click', async () => { try { await navigator.clipboard.writeText(button.dataset.copy); toast(t('copied')); } catch (_) { toast(button.dataset.copy); } });
+for (const button of document.querySelectorAll('[data-copy]')) {
+  const path = new URL(button.dataset.copy).pathname;
+  button.dataset.copy = `${location.origin}${path}`;
+  button.querySelector('code').textContent = `${location.host}${path}`;
+  button.addEventListener('click', async () => { try { await navigator.clipboard.writeText(button.dataset.copy); toast(t('copied')); } catch (_) { toast(button.dataset.copy); } });
+}
 
 setForm(); applyLanguage(); initialize();
 setInterval(() => loadRequests().catch(() => {}), 5000);

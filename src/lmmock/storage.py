@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import regex as re
 import sqlite3
 import threading
 from datetime import datetime, timezone
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -54,8 +56,17 @@ class Store:
         conn.execute("PRAGMA journal_mode=WAL")
         return conn
 
+    @contextmanager
+    def _connection(self):
+        conn = self._connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _init_db(self) -> None:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS groups (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,10 +95,11 @@ class Store:
             )
             conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             now = self._now()
-            conn.execute(
-                "INSERT OR IGNORE INTO groups(name,description,created_at,updated_at) VALUES (?,?,?,?)",
-                (DEFAULT_GROUP["name"], DEFAULT_GROUP["description"], now, now),
-            )
+            if conn.execute("SELECT 1 FROM groups LIMIT 1").fetchone() is None:
+                conn.execute(
+                    "INSERT INTO groups(name,description,created_at,updated_at) VALUES (?,?,?,?)",
+                    (DEFAULT_GROUP["name"], DEFAULT_GROUP["description"], now, now),
+                )
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(rules)").fetchall()}
             if "group_id" not in columns:
                 conn.execute("ALTER TABLE rules ADD COLUMN group_id INTEGER")
@@ -95,8 +107,10 @@ class Store:
                 conn.execute("ALTER TABLE rules ADD COLUMN model_pattern TEXT NOT NULL DEFAULT '*'")
             default_group_id = conn.execute("SELECT id FROM groups ORDER BY id LIMIT 1").fetchone()["id"]
             conn.execute("UPDATE rules SET group_id=? WHERE group_id IS NULL", (default_group_id,))
-            if conn.execute("SELECT 1 FROM rules LIMIT 1").fetchone() is None:
+            initialized = conn.execute("SELECT 1 FROM settings WHERE key IN ('seed_default_rule_v1', 'seed_fool_ai_v1')").fetchone()
+            if initialized is None and conn.execute("SELECT 1 FROM rules LIMIT 1").fetchone() is None:
                 self.create_rule({**DEFAULT_RULE, "group_id": default_group_id}, conn=conn)
+            conn.execute("INSERT OR IGNORE INTO settings(key,value) VALUES ('seed_default_rule_v1', 'true')")
             seeded = conn.execute("SELECT 1 FROM settings WHERE key='seed_fool_ai_v1'").fetchone()
             if seeded is None:
                 exists = conn.execute("SELECT 1 FROM rules WHERE name=? LIMIT 1", (FOOL_AI_RULE["name"],)).fetchone()
@@ -142,7 +156,7 @@ class Store:
         }
 
     def list_rules(self, group_id: int | None = None) -> list[dict[str, Any]]:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             if group_id is None:
                 rows = conn.execute("SELECT * FROM rules ORDER BY priority ASC, id ASC").fetchall()
             else:
@@ -150,37 +164,28 @@ class Store:
             return [self._row(row) for row in rows]
 
     def create_rule(self, data: dict[str, Any], conn: sqlite3.Connection | None = None) -> dict[str, Any]:
+        if conn is None:
+            with self.lock, self._connection() as owned:
+                return self.create_rule(data, conn=owned)
         values = self._validate_rule(data)
-        own = conn is None
-        if own:
-            self.lock.acquire()
-            conn = self._connect()
-        assert conn is not None
         now = self._now()
-        try:
-            if conn.execute("SELECT 1 FROM groups WHERE id=?", (values["group_id"],)).fetchone() is None:
-                raise ValueError("group_id does not exist")
-            cur = conn.execute(
-                """INSERT INTO rules
-                (name, enabled, priority, model_pattern, scopes, match_type, match_value, reply_type, reply_json, delay_ms, group_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    values["name"], int(values["enabled"]), values["priority"], values["model_pattern"], json.dumps(values["scopes"]),
-                    values["match_type"], values["match_value"], values["reply_type"], json.dumps(values["reply"]),
-                    values["delay_ms"], values["group_id"], now, now,
-                ),
-            )
-            conn.commit()
-            row = conn.execute("SELECT * FROM rules WHERE id=?", (cur.lastrowid,)).fetchone()
-            return self._row(row)
-        finally:
-            if own:
-                conn.close()
-                self.lock.release()
+        if conn.execute("SELECT 1 FROM groups WHERE id=?", (values["group_id"],)).fetchone() is None:
+            raise ValueError("group_id does not exist")
+        cur = conn.execute(
+            """INSERT INTO rules
+            (name, enabled, priority, model_pattern, scopes, match_type, match_value, reply_type, reply_json, delay_ms, group_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                values["name"], int(values["enabled"]), values["priority"], values["model_pattern"], json.dumps(values["scopes"]),
+                values["match_type"], values["match_value"], values["reply_type"], json.dumps(values["reply"]),
+                values["delay_ms"], values["group_id"], now, now,
+            ),
+        )
+        return self._row(conn.execute("SELECT * FROM rules WHERE id=?", (cur.lastrowid,)).fetchone())
 
     def update_rule(self, rule_id: int, data: dict[str, Any]) -> dict[str, Any] | None:
         values = self._validate_rule(data)
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             if conn.execute("SELECT 1 FROM groups WHERE id=?", (values["group_id"],)).fetchone() is None:
                 raise ValueError("group_id does not exist")
             cur = conn.execute(
@@ -196,7 +201,7 @@ class Store:
             return self._row(conn.execute("SELECT * FROM rules WHERE id=?", (rule_id,)).fetchone())
 
     def delete_rule(self, rule_id: int) -> bool:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             cur = conn.execute("DELETE FROM rules WHERE id=?", (rule_id,))
             conn.commit()
             return cur.rowcount > 0
@@ -212,7 +217,7 @@ class Store:
         }
 
     def list_groups(self) -> list[dict[str, Any]]:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             rows = conn.execute("SELECT * FROM groups ORDER BY id").fetchall()
             return [self._group_row(row) for row in rows]
 
@@ -222,7 +227,7 @@ class Store:
             raise ValueError("Group name is required")
         description = str(data.get("description", "")).strip()[:500]
         now = self._now()
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             try:
                 cur = conn.execute(
                     "INSERT INTO groups(name,description,created_at,updated_at) VALUES (?,?,?,?)",
@@ -238,7 +243,7 @@ class Store:
         if not name:
             raise ValueError("Group name is required")
         description = str(data.get("description", "")).strip()[:500]
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             try:
                 cur = conn.execute(
                     "UPDATE groups SET name=?, description=?, updated_at=? WHERE id=?",
@@ -252,7 +257,7 @@ class Store:
             return self._group_row(conn.execute("SELECT * FROM groups WHERE id=?", (group_id,)).fetchone())
 
     def delete_group(self, group_id: int) -> bool:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             if conn.execute("SELECT COUNT(*) AS count FROM groups").fetchone()["count"] <= 1:
                 raise ValueError("The last behavior group cannot be deleted")
             configured = conn.execute("SELECT value FROM settings WHERE key='model_configs'").fetchone()
@@ -265,7 +270,7 @@ class Store:
             return cur.rowcount > 0
 
     def get_settings(self) -> dict[str, Any]:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             rows = conn.execute("SELECT key, value FROM settings").fetchall()
         groups = self.list_groups()
         default_group_id = groups[0]["id"]
@@ -331,7 +336,7 @@ class Store:
             "model_configs": model_configs,
             "active_group_id": active_group_id,
         }
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             for key in values:
                 if key in allowed:
                     value = normalized[key]
@@ -352,10 +357,30 @@ class Store:
         if result["match_type"] not in {"all", "contains", "regex"}:
             raise ValueError("match_type must be all, contains, or regex")
         result["match_value"] = str(result.get("match_value", ""))[:4000]
+        if result["match_type"] == "regex":
+            try:
+                re.compile(result["match_value"], re.IGNORECASE | re.DOTALL | re.VERSION0)
+            except re.error as exc:
+                raise ValueError(f"Invalid regular expression: {exc}") from exc
         result["reply_type"] = str(result["reply_type"])
         if result["reply_type"] not in {"text", "json", "tool", "error", "random"}:
             raise ValueError("reply_type must be text, json, tool, error, or random")
         result["reply"] = dict(result.get("reply") or {})
+        if result["reply_type"] == "error":
+            status = result["reply"].get("status_code", 500)
+            if type(status) is not int or not 400 <= status <= 599:
+                raise ValueError("Error status_code must be an integer between 400 and 599")
+            result["reply"]["status_code"] = status
+        if result["reply_type"] == "tool":
+            arguments = result["reply"].get("arguments", {})
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError as exc:
+                    raise ValueError("Tool arguments must be a JSON object") from exc
+            if not isinstance(arguments, dict):
+                raise ValueError("Tool arguments must be a JSON object")
+            result["reply"]["arguments"] = arguments
         if result["reply_type"] == "random":
             result["reply"]["size"] = max(0, min(int(result["reply"].get("size", 4096)), 10_000_000))
         result["delay_ms"] = max(0, min(int(result.get("delay_ms", 0)), 30_000))

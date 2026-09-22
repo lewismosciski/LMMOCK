@@ -1,11 +1,7 @@
 import json
-import socket
-import threading
-import time
 
 import httpx
 import pytest
-import uvicorn
 from google import genai
 from google.genai import errors, types
 
@@ -152,23 +148,8 @@ async def test_group_scopes_errors_and_random(client):
 
 
 @pytest.fixture
-def live_url(gemini_app):
-    # Exercise the SDK's real HTTP and SSE handling, using an isolated database.
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        server = uvicorn.Server(uvicorn.Config(gemini_app, log_level="error"))
-        thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
-        thread.start()
-        try:
-            deadline = time.monotonic() + 10
-            while not server.started:
-                if not thread.is_alive() or time.monotonic() > deadline:
-                    pytest.fail("Mock server did not start")
-                time.sleep(0.01)
-            yield f"http://127.0.0.1:{sock.getsockname()[1]}/gemini"
-        finally:
-            server.should_exit = True
-            thread.join(timeout=10)
+def live_url(gemini_app, live_server):
+    return live_server + "/gemini"
 
 
 def test_official_google_genai_sdk(live_url, gemini_app):

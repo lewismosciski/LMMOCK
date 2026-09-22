@@ -9,7 +9,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,6 +17,27 @@ from . import __version__
 from .config import data_dir
 from .engine import SemanticReply, SemanticRequest, request_from, resolve
 from .storage import Store
+
+
+MAX_REQUEST_BYTES = 16 * 1024 * 1024
+
+
+async def _read_json(request: Request) -> dict[str, Any]:
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"Invalid JSON constant: {value}")
+
+    raw = bytearray()
+    async for chunk in request.stream():
+        if len(raw) + len(chunk) > MAX_REQUEST_BYTES:
+            raise HTTPException(413, "Request body exceeds the 16 MiB limit")
+        raw.extend(chunk)
+    try:
+        body = json.loads(raw, parse_constant=reject_constant)
+    except (ValueError, RecursionError) as exc:
+        raise HTTPException(400, "Request body must be valid JSON") from exc
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Request body must be an object")
+    return body
 
 
 class State:
@@ -69,6 +90,11 @@ def _reply_output(reply: SemanticReply) -> str:
     return _json(reply.arguments or {}) if reply.kind == "tool" else reply.text
 
 
+def _completion_usage(request: SemanticRequest, reply: SemanticReply) -> dict[str, int]:
+    usage = _usage(request.text, _reply_output(reply))
+    return {"prompt_tokens": usage["input_tokens"], "completion_tokens": usage["output_tokens"], "total_tokens": usage["total_tokens"]}
+
+
 def _error_payload(provider: str, reply: SemanticReply) -> dict[str, Any]:
     if provider == "gemini":
         status = {
@@ -105,7 +131,7 @@ def _chat_payload(request: SemanticRequest, reply: SemanticReply, response_id: s
     else:
         message = {"role": "assistant", "content": reply.text}
         finish = "stop"
-    return {"id": response_id, "object": "chat.completion", "created": int(time.time()), "model": request.model, "choices": [{"index": 0, "message": message, "finish_reason": finish}], "usage": _usage(request.text, _reply_output(reply))}
+    return {"id": response_id, "object": "chat.completion", "created": int(time.time()), "model": request.model, "choices": [{"index": 0, "message": message, "finish_reason": finish}], "usage": _completion_usage(request, reply)}
 
 
 def _completion_payload(request: SemanticRequest, reply: SemanticReply, response_id: str) -> dict[str, Any]:
@@ -115,7 +141,7 @@ def _completion_payload(request: SemanticRequest, reply: SemanticReply, response
         "created": int(time.time()),
         "model": request.model,
         "choices": [{"index": 0, "text": reply.text, "finish_reason": "stop", "logprobs": None}],
-        "usage": _usage(request.text, _reply_output(reply)),
+        "usage": _completion_usage(request, reply),
     }
 
 
@@ -180,11 +206,11 @@ def _gemini_model(name: str) -> dict[str, Any]:
     return {"name": f"models/{name}", "displayName": name, "supportedGenerationMethods": ["generateContent", "streamGenerateContent", "countTokens"]}
 
 
-async def _chat_stream(request: SemanticRequest, reply: SemanticReply, response_id: str, include_usage: bool) -> AsyncIterator[bytes]:
-    base = {"id": response_id, "object": "chat.completion.chunk", "created": int(time.time()), "model": request.model}
+async def _chat_stream(request: SemanticRequest, reply: SemanticReply, response_id: str, include_usage: bool, payload: dict[str, Any]) -> AsyncIterator[bytes]:
+    base = {"id": response_id, "object": "chat.completion.chunk", "created": payload["created"], "model": request.model}
     yield _sse({**base, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]})
     if reply.kind == "tool":
-        call_id = _id("call")
+        call_id = payload["choices"][0]["message"]["tool_calls"][0]["id"]
         yield _sse({**base, "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": call_id, "type": "function", "function": {"name": reply.tool_name, "arguments": ""}}]}, "finish_reason": None}]})
         arguments = _json(reply.arguments or {})
         for start in range(0, len(arguments), 32):
@@ -198,7 +224,7 @@ async def _chat_stream(request: SemanticRequest, reply: SemanticReply, response_
         finish = "stop"
     yield _sse({**base, "choices": [{"index": 0, "delta": {}, "finish_reason": finish}]})
     if include_usage:
-        yield _sse({**base, "choices": [], "usage": _usage(request.text, _reply_output(reply))})
+        yield _sse({**base, "choices": [], "usage": _completion_usage(request, reply)})
     yield b"data: [DONE]\n\n"
 
 
@@ -211,7 +237,7 @@ async def _completion_stream(request: SemanticRequest, reply: SemanticReply, res
     yield b"data: [DONE]\n\n"
 
 
-async def _responses_stream(request: SemanticRequest, reply: SemanticReply, response_id: str) -> AsyncIterator[bytes]:
+async def _responses_stream(request: SemanticRequest, reply: SemanticReply, response_id: str, payload: dict[str, Any]) -> AsyncIterator[bytes]:
     sequence = 0
 
     def event(kind: str, **values: Any) -> bytes:
@@ -221,13 +247,12 @@ async def _responses_stream(request: SemanticRequest, reply: SemanticReply, resp
         payload.update(values)
         return _sse(payload, kind)
 
-    in_progress = {"id": response_id, "object": "response", "created_at": int(time.time()), "status": "in_progress", "model": request.model, "output": []}
+    in_progress = {"id": response_id, "object": "response", "created_at": payload["created_at"], "status": "in_progress", "model": request.model, "output": []}
     yield event("response.created", response=in_progress)
     yield event("response.in_progress", response=in_progress)
-    item_id = _id("msg")
+    item_id = payload["output"][0]["id"]
     if reply.kind == "tool":
-        item_id = _id("fc")
-        call_id = _id("call")
+        call_id = payload["output"][0]["call_id"]
         yield event("response.output_item.added", output_index=0, item={"id": item_id, "type": "function_call", "status": "in_progress", "call_id": call_id, "name": reply.tool_name, "arguments": ""})
         arguments = _json(reply.arguments or {})
         for start in range(0, len(arguments), 32):
@@ -244,16 +269,13 @@ async def _responses_stream(request: SemanticRequest, reply: SemanticReply, resp
         yield event("response.content_part.done", item_id=item_id, output_index=0, content_index=0, part=content)
         final_item = {"id": item_id, "type": "message", "status": "completed", "role": "assistant", "content": [content]}
     yield event("response.output_item.done", output_index=0, item=final_item)
-    completed = _responses_payload(request, reply, response_id)
-    completed["output"] = [final_item]
-    yield event("response.completed", response=completed)
+    yield event("response.completed", response=payload)
 
 
-async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, response_id: str) -> AsyncIterator[bytes]:
-    message = _anthropic_payload(request, reply, response_id)
+async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, response_id: str, message: dict[str, Any]) -> AsyncIterator[bytes]:
     yield _sse({"type": "message_start", "message": {**message, "content": [], "stop_reason": None}}, "message_start")
     if reply.kind == "tool":
-        block = {"type": "tool_use", "id": _id("toolu"), "name": reply.tool_name, "input": {}}
+        block = {**message["content"][0], "input": {}}
         yield _sse({"type": "content_block_start", "index": 0, "content_block": block}, "content_block_start")
         arguments = _json(reply.arguments or {})
         for start in range(0, len(arguments), 32):
@@ -269,6 +291,21 @@ async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, resp
 
 def create_app(storage_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="LMMock", version=__version__, docs_url=None, redoc_url=None)
+
+    @app.middleware("http")
+    async def protect_management_writes(request: Request, call_next):
+        if request.url.path.startswith("/__lmmock/api/") and request.method not in {"GET", "HEAD", "OPTIONS"}:
+            origin = request.headers.get("origin")
+            if request.headers.get("sec-fetch-site") == "cross-site" or (origin and origin != str(request.base_url).rstrip("/")):
+                return JSONResponse({"error": "Cross-origin management writes are not allowed"}, status_code=403)
+        return await call_next(request)
+
+    @app.exception_handler(HTTPException)
+    async def request_error(request: Request, exc: HTTPException) -> Response:
+        if request.url.path.startswith("/__lmmock/"):
+            return JSONResponse({"error": str(exc.detail)}, status_code=exc.status_code)
+        provider = request.url.path.split("/")[1]
+        return _error(provider, SemanticReply("error", text=str(exc.detail), status_code=exc.status_code, error_type="invalid_request_error"), _id("req"))
     store = Store((storage_dir or data_dir()) / "lmmock.sqlite3")
     state = State(store)
     app.state.lmmock = state
@@ -298,7 +335,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         supplied = bearer or request.headers.get("x-api-key", "")
         if provider == "gemini":
             supplied = request.headers.get("x-goog-api-key") or request.query_params.get("key", "")
-        if supplied and secrets.compare_digest(supplied, required_key):
+        if supplied and secrets.compare_digest(supplied.encode("utf-8"), required_key.encode("utf-8")):
             return None
         error = SemanticReply("error", text=f"A valid API key is required for model '{config['name']}'.", status_code=401, error_type="authentication_error")
         return _error(provider, error, _id("req"))
@@ -307,13 +344,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         def invalid(message: str) -> Response:
             return _error(provider, SemanticReply("error", text=message, status_code=400, error_type="invalid_request_error"), _id("req"))
 
-        raw = await request.body()
-        try:
-            body = json.loads(raw or b"{}")
-        except json.JSONDecodeError:
-            return invalid("Request body must be JSON")
-        if not isinstance(body, dict):
-            return invalid("Request body must be an object")
+        body = await _read_json(request)
         settings = store.get_settings()
         body = dict(body)
         if provider == "gemini":
@@ -388,7 +419,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
             if semantic.stream:
                 include_usage = bool((body.get("stream_options") or {}).get("include_usage"))
-                return StreamingResponse(_chat_stream(semantic, reply, response_id, include_usage), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
+                return StreamingResponse(_chat_stream(semantic, reply, response_id, include_usage, payload), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
             return JSONResponse(payload, headers={"x-request-id": request_id})
         if operation == "completions":
             payload = _completion_payload(semantic, reply, response_id)
@@ -400,12 +431,12 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             payload = _responses_payload(semantic, reply, response_id)
             record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
             if semantic.stream:
-                return StreamingResponse(_responses_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
+                return StreamingResponse(_responses_stream(semantic, reply, response_id, payload), media_type="text/event-stream", headers={"cache-control": "no-cache", "x-request-id": request_id})
             return JSONResponse(payload, headers={"x-request-id": request_id})
         payload = _anthropic_payload(semantic, reply, response_id)
         record(request_id, rule["name"] if rule else None, reply.status_code, payload, _reply_output(reply))
         if semantic.stream:
-            return StreamingResponse(_anthropic_stream(semantic, reply, response_id), media_type="text/event-stream", headers={"cache-control": "no-cache", "request-id": request_id})
+            return StreamingResponse(_anthropic_stream(semantic, reply, response_id, payload), media_type="text/event-stream", headers={"cache-control": "no-cache", "request-id": request_id})
         return JSONResponse(payload, headers={"request-id": request_id})
 
     @app.post("/openai/v1/chat/completions")
@@ -426,10 +457,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
     @app.post("/anthropic/v1/messages/count_tokens")
     async def count_message_tokens(request: Request) -> Response:
-        try:
-            body = await request.json()
-        except json.JSONDecodeError:
-            return JSONResponse({"type": "error", "error": {"type": "invalid_request_error", "message": "Request body must be JSON"}}, status_code=400)
+        body = await _read_json(request)
         settings = store.get_settings()
         anthropic_default = next((config["name"] for config in settings["model_configs"] if config["protocol"] == "anthropic"), "")
         body.setdefault("model", anthropic_default)
@@ -439,7 +467,10 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         auth_error = authentication_error("anthropic", request, config)
         if auth_error:
             return auth_error
-        semantic = request_from("anthropic", "messages", body)
+        try:
+            semantic = request_from("anthropic", "messages", body)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
         return JSONResponse({"input_tokens": _token_count(semantic.text)})
 
     @app.get("/openai/v1/models")
@@ -486,14 +517,14 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     @app.post("/__lmmock/api/rules")
     async def create_rule(request: Request) -> Response:
         try:
-            return JSONResponse(store.create_rule(await request.json()), status_code=201)
+            return JSONResponse(store.create_rule(await _read_json(request)), status_code=201)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
     @app.put("/__lmmock/api/rules/{rule_id}")
     async def update_rule(rule_id: int, request: Request) -> Response:
         try:
-            result = store.update_rule(rule_id, await request.json())
+            result = store.update_rule(rule_id, await _read_json(request))
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(result) if result else JSONResponse({"error": "Rule not found"}, status_code=404)
@@ -504,7 +535,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
     @app.post("/__lmmock/api/rules/reorder")
     async def reorder(request: Request) -> list[dict[str, Any]]:
-        data = await request.json()
+        data = await _read_json(request)
         for priority, rule_id in enumerate(data.get("ids", []), 1):
             current = next((rule for rule in store.list_rules() if rule["id"] == int(rule_id)), None)
             if current:
@@ -519,14 +550,14 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     @app.post("/__lmmock/api/groups")
     async def create_group(request: Request) -> Response:
         try:
-            return JSONResponse(store.create_group(await request.json()), status_code=201)
+            return JSONResponse(store.create_group(await _read_json(request)), status_code=201)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
     @app.put("/__lmmock/api/groups/{group_id}")
     async def update_group(group_id: int, request: Request) -> Response:
         try:
-            result = store.update_group(group_id, await request.json())
+            result = store.update_group(group_id, await _read_json(request))
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(result) if result else JSONResponse({"error": "Group not found"}, status_code=404)
@@ -541,14 +572,20 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
     @app.post("/__lmmock/api/preview")
     async def preview(request: Request) -> Response:
-        data = await request.json()
+        data = await _read_json(request)
         protocol = data.get("protocol", "openai_chat")
+        if not isinstance(protocol, str):
+            raise HTTPException(400, "protocol must be a string")
         mapping = {"openai_chat": ("openai", "chat"), "openai_completions": ("openai", "completions"), "openai_responses": ("openai", "responses"), "anthropic_messages": ("anthropic", "messages"), "gemini_generate_content": ("gemini", "generateContent")}
         provider, operation = mapping.get(protocol, ("openai", "chat"))
-        semantic = request_from(provider, operation, data.get("body", {}))
+        try:
+            semantic = request_from(provider, operation, data.get("body", {}))
+            selected_group = int(data["group_id"]) if data.get("group_id") else None
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
         settings = store.get_settings()
         config = configured_model(settings, semantic.model, provider)
-        group_ids = [int(data["group_id"])] if data.get("group_id") else (config["group_ids"] if config else [])
+        group_ids = [selected_group] if selected_group is not None else (config["group_ids"] if config else [])
         rules = [rule for group_id in group_ids for rule in store.list_rules(group_id)]
         rules.sort(key=lambda item: (item["priority"], item["id"]))
         rule, reply = resolve(rules, semantic)
@@ -561,7 +598,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     @app.put("/__lmmock/api/settings")
     async def update_settings(request: Request) -> Response:
         try:
-            return JSONResponse(store.set_settings(await request.json()))
+            return JSONResponse(store.set_settings(await _read_json(request)))
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
@@ -582,4 +619,10 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
+def __getattr__(name: str) -> Any:
+    # Keep `uvicorn lmmock.app:app` working without opening a database on import.
+    if name == "app":
+        application = create_app()
+        globals()[name] = application
+        return application
+    raise AttributeError(name)
