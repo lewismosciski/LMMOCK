@@ -134,6 +134,23 @@ def _fool_ai(value: str) -> str:
     return f"{statement}！"
 
 
+def _last_user(request: SemanticRequest) -> str:
+    body = request.raw
+    if request.operation == "completions":
+        return _part_text(body.get("prompt", ""))
+    if request.operation == "responses":
+        value = body.get("input", "")
+        if isinstance(value, str):
+            return value
+        messages = value
+    else:
+        messages = body.get("contents" if request.provider == "gemini" else "messages", [])
+    for message in reversed(messages):
+        if isinstance(message, dict) and message.get("role", "user") == "user" and message.get("type", "message") == "message":
+            return _part_text(message.get("parts" if request.provider == "gemini" else "content", ""))
+    return ""
+
+
 def _template(value: Any, variables: dict[str, str]) -> Any:
     if isinstance(value, dict):
         return {key: _template(item, variables) for key, item in value.items()}
@@ -178,7 +195,7 @@ def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict
                 match = False
         if not match:
             continue
-        variables = {"model": request.model, "last_user": request.text[-2000:]}
+        variables = {"model": request.model, "last_user": _last_user(request)[-2000:]}
         if hasattr(match, "groupdict"):
             variables.update({key: str(value) for key, value in match.groupdict().items() if value is not None})
             variables.update({str(index): value for index, value in enumerate(match.groups(), 1) if value is not None})
