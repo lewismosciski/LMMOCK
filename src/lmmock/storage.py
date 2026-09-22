@@ -4,6 +4,7 @@ import json
 import sqlite3
 import threading
 from datetime import datetime, timezone
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -54,8 +55,17 @@ class Store:
         conn.execute("PRAGMA journal_mode=WAL")
         return conn
 
+    @contextmanager
+    def _connection(self):
+        conn = self._connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _init_db(self) -> None:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS groups (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -142,7 +152,7 @@ class Store:
         }
 
     def list_rules(self, group_id: int | None = None) -> list[dict[str, Any]]:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             if group_id is None:
                 rows = conn.execute("SELECT * FROM rules ORDER BY priority ASC, id ASC").fetchall()
             else:
@@ -180,7 +190,7 @@ class Store:
 
     def update_rule(self, rule_id: int, data: dict[str, Any]) -> dict[str, Any] | None:
         values = self._validate_rule(data)
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             if conn.execute("SELECT 1 FROM groups WHERE id=?", (values["group_id"],)).fetchone() is None:
                 raise ValueError("group_id does not exist")
             cur = conn.execute(
@@ -196,7 +206,7 @@ class Store:
             return self._row(conn.execute("SELECT * FROM rules WHERE id=?", (rule_id,)).fetchone())
 
     def delete_rule(self, rule_id: int) -> bool:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             cur = conn.execute("DELETE FROM rules WHERE id=?", (rule_id,))
             conn.commit()
             return cur.rowcount > 0
@@ -212,7 +222,7 @@ class Store:
         }
 
     def list_groups(self) -> list[dict[str, Any]]:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             rows = conn.execute("SELECT * FROM groups ORDER BY id").fetchall()
             return [self._group_row(row) for row in rows]
 
@@ -222,7 +232,7 @@ class Store:
             raise ValueError("Group name is required")
         description = str(data.get("description", "")).strip()[:500]
         now = self._now()
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             try:
                 cur = conn.execute(
                     "INSERT INTO groups(name,description,created_at,updated_at) VALUES (?,?,?,?)",
@@ -238,7 +248,7 @@ class Store:
         if not name:
             raise ValueError("Group name is required")
         description = str(data.get("description", "")).strip()[:500]
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             try:
                 cur = conn.execute(
                     "UPDATE groups SET name=?, description=?, updated_at=? WHERE id=?",
@@ -252,7 +262,7 @@ class Store:
             return self._group_row(conn.execute("SELECT * FROM groups WHERE id=?", (group_id,)).fetchone())
 
     def delete_group(self, group_id: int) -> bool:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             if conn.execute("SELECT COUNT(*) AS count FROM groups").fetchone()["count"] <= 1:
                 raise ValueError("The last behavior group cannot be deleted")
             configured = conn.execute("SELECT value FROM settings WHERE key='model_configs'").fetchone()
@@ -265,7 +275,7 @@ class Store:
             return cur.rowcount > 0
 
     def get_settings(self) -> dict[str, Any]:
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             rows = conn.execute("SELECT key, value FROM settings").fetchall()
         groups = self.list_groups()
         default_group_id = groups[0]["id"]
@@ -331,7 +341,7 @@ class Store:
             "model_configs": model_configs,
             "active_group_id": active_group_id,
         }
-        with self.lock, self._connect() as conn:
+        with self.lock, self._connection() as conn:
             for key in values:
                 if key in allowed:
                     value = normalized[key]
