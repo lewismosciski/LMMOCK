@@ -1,11 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111214">
   <title>LMMock · Local LLM mock server</title>
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+  <script>
+    try {
+      if (localStorage.getItem('lmmock-theme') === 'light') document.documentElement.dataset.theme = 'light';
+    } catch (_) { /* Use the dark default if browser storage is unavailable. */ }
+  </script>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -15,13 +20,8 @@
       <img src="/static/logo.svg" alt="" width="38" height="38">
       <strong>LMMock</strong>
     </a>
-    <nav class="workspace-nav" aria-label="Workspace">
-      <a href="#models-section" data-i18n="ruleModels">Models</a>
-      <a href="#rules-section" data-i18n="rules">Rules</a>
-      <a href="#playground-section">Playground</a>
-      <a href="#activity-section" data-i18n="totalRequests">Requests</a>
-    </nav>
     <div class="topbar-actions">
+      <button id="theme-toggle" class="theme-toggle" type="button">Light mode</button>
       <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch language">EN</button>
     </div>
   </header>

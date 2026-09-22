@@ -48,13 +48,13 @@ docker run --rm -p 127.0.0.1:17321:17321 \
 
 You only need to configure a model, add a rule, and point your application's SDK to LMMock.
 
-<p align="center"><img src=".github/assets/lmmock-ui.png" alt="LMMock v0.3.1 dark workspace with model configuration, rule editor, and request/response Playground" width="100%"></p>
+<p align="center"><img src=".github/assets/lmmock-ui.png" alt="LMMock dark workspace with model configuration, rule editor, and full-width request/response Playground" width="100%"></p>
 
 1. In **Models, interfaces & API keys**, keep the model name used by your app, choose OpenAI-compatible, Anthropic, or Gemini, and assign one or more behavior groups.
 2. In **Rules**, select a template or define what to match and what LMMock should return. Rules can return text, JSON, tool calls, errors, or exact-size random data.
 3. Change the SDK Base URL: use `http://127.0.0.1:17321/openai/v1`, `http://127.0.0.1:17321/anthropic`, or `http://127.0.0.1:17321/gemini` for the corresponding client.
 
-Use the Playground to try a rule immediately, with the request and response side by side. Recent requests shows the full request, response, and estimated token usage. The workspace starts in English with a dark theme; use **EN** to switch languages.
+Use the full-width Playground below the rules to compare requests and responses side by side. Recent requests shows the full exchange and estimated token usage. The workspace starts in English and dark mode; switch language or light/dark mode at the top right. Your preferences are remembered.
 
 Regex matching has a 50 ms budget per request. Rules that time out are skipped; text and fallback rules can still match.
 JSON request bodies are limited to 16 MiB, including chunked uploads.

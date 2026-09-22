@@ -6,12 +6,14 @@ function savedLanguage() {
 const state = {
   rules: [], groups: [], settings: null, activeRuleId: null, activeGroupId: null,
   language: savedLanguage(),
+  theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark',
 };
 let toastTimer;
 
 const messages = {
   en: {
     skipToContent: 'Skip to workspace',
+    lightMode: 'Light mode', darkMode: 'Dark mode',
     heroTitle: 'Shape the model response.', heroCopy: 'Create deterministic replies for OpenAI, Anthropic, and Gemini clients, then test the same application code without a model call.', copy: 'Copy', apiKey: 'API key',
     rules: 'Rules', rulesHelp: 'Rules are isolated inside behavior groups.', newRule: 'New rule', behaviorGroup: 'Behavior group', newGroup: 'New group', startTemplate: 'Start from a template', templateHelp: 'Choose one, adjust it, then save.', savedRules: 'Saved rules', editorHelp: 'Match a request and return a fixed result.', enabled: 'Enabled',
     name: 'Name', description: 'Description', namePlaceholder: 'Weather reply', ruleModels: 'Models', modelPatternPlaceholder: '* or gpt-*, deepseek-chat', scope: 'Scope', allEndpoints: 'All endpoints', priority: 'Priority', match: 'Match', everyRequest: 'Every request', contains: 'Contains', regex: 'Regex', text: 'Text', reply: 'Reply', jsonText: 'JSON text', randomData: 'Random data', randomSize: 'Data size (bytes)', randomHelp: 'Generates exact-size random ASCII data, up to 10 MB.', toolCall: 'Tool call', httpError: 'HTTP error', delay: 'Delay (ms)', content: 'Content', captureHelp: 'Regex captures can be inserted as ${city} or ${1}.', toolName: 'Tool name', arguments: 'Arguments (JSON)', status: 'Status', errorMessage: 'Error message', saveRule: 'Save rule', saveGroup: 'Save group', delete: 'Delete',
@@ -21,6 +23,7 @@ const messages = {
   },
   zh: {
     skipToContent: '跳转到工作区',
+    lightMode: '日间模式', darkMode: '夜间模式',
     heroTitle: '定义你的模型回复。', heroCopy: '为 OpenAI、Anthropic 和 Gemini 客户端创建稳定可复现的回复，无需调用真实模型即可测试同一套应用代码。', copy: '复制', apiKey: 'API 密钥',
     rules: '规则', rulesHelp: '不同的行为组拥有相互隔离的规则。', newRule: '新建规则', behaviorGroup: '行为组', newGroup: '新建组', startTemplate: '从模板开始', templateHelp: '选择模板，按需修改，然后保存。', savedRules: '已保存规则', editorHelp: '匹配请求并返回固定结果。', enabled: '启用',
     name: '名称', description: '描述', namePlaceholder: '天气回复', ruleModels: '适用模型', modelPatternPlaceholder: '* 或 gpt-*、deepseek-chat', scope: '接口范围', allEndpoints: '全部接口', priority: '优先级', match: '匹配方式', everyRequest: '所有请求', contains: '包含文本', regex: '正则表达式', text: '文本', reply: '回复类型', jsonText: 'JSON 文本', randomData: '随机数据', randomSize: '数据大小（字节）', randomHelp: '生成指定大小的随机 ASCII 数据，最大 10 MB。', toolCall: '工具调用', httpError: 'HTTP 错误', delay: '延迟（毫秒）', content: '回复内容', captureHelp: '正则捕获内容可通过 ${city} 或 ${1} 插入回复。', toolName: '工具名称', arguments: '参数（JSON）', status: '状态码', errorMessage: '错误信息', saveRule: '保存规则', saveGroup: '保存行为组', delete: '删除',
@@ -72,12 +75,19 @@ function toast(message) {
   toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2400);
 }
 
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme;
+  $('theme-toggle').textContent = t(state.theme === 'dark' ? 'lightMode' : 'darkMode');
+  document.querySelector('meta[name="theme-color"]').content = state.theme === 'dark' ? '#111214' : '#f5f7f6';
+}
+
 function applyLanguage() {
   document.documentElement.lang = state.language === 'zh' ? 'zh-CN' : 'en';
   document.querySelectorAll('[data-i18n]').forEach((node) => { node.textContent = t(node.dataset.i18n); });
   document.querySelectorAll('[data-i18n-placeholder]').forEach((node) => { node.placeholder = t(node.dataset.i18nPlaceholder); });
   $('language-toggle').textContent = state.language === 'en' ? 'EN' : 'ZH';
   $('language-toggle').setAttribute('aria-label', state.language === 'en' ? '切换到中文' : 'Switch to English');
+  applyTheme();
   $('editor-title').textContent = state.activeRuleId ? t('editRule') : t('newRule');
   if (!$('playground-meta').textContent) $('playground-output').textContent = t('noRequestYet');
   renderTemplates(); renderRules();
@@ -359,6 +369,12 @@ for (const button of document.querySelectorAll('[data-copy]')) {
   button.querySelector('code').textContent = `${location.host}${path}`;
   button.addEventListener('click', async () => { try { await navigator.clipboard.writeText(button.dataset.copy); toast(t('copied')); } catch (_) { toast(button.dataset.copy); } });
 }
+
+$('theme-toggle').addEventListener('click', () => {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem('lmmock-theme', state.theme); } catch (_) { /* Keep the current session usable. */ }
+  applyTheme();
+});
 
 setForm(); applyLanguage(); initialize();
 setInterval(() => loadRequests().catch(() => {}), 5000);
