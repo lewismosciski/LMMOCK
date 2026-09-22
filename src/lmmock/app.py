@@ -9,7 +9,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,6 +17,19 @@ from . import __version__
 from .config import data_dir
 from .engine import SemanticReply, SemanticRequest, request_from, resolve
 from .storage import Store
+
+
+async def _read_json(request: Request) -> dict[str, Any]:
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"Invalid JSON constant: {value}")
+
+    try:
+        body = json.loads(await request.body(), parse_constant=reject_constant)
+    except (ValueError, RecursionError) as exc:
+        raise HTTPException(400, "Request body must be valid JSON") from exc
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Request body must be an object")
+    return body
 
 
 class State:
@@ -269,6 +282,13 @@ async def _anthropic_stream(request: SemanticRequest, reply: SemanticReply, resp
 
 def create_app(storage_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="LMMock", version=__version__, docs_url=None, redoc_url=None)
+
+    @app.exception_handler(HTTPException)
+    async def request_error(request: Request, exc: HTTPException) -> Response:
+        if request.url.path.startswith("/__lmmock/"):
+            return JSONResponse({"error": str(exc.detail)}, status_code=exc.status_code)
+        provider = request.url.path.split("/")[1]
+        return _error(provider, SemanticReply("error", text=str(exc.detail), status_code=exc.status_code, error_type="invalid_request_error"), _id("req"))
     store = Store((storage_dir or data_dir()) / "lmmock.sqlite3")
     state = State(store)
     app.state.lmmock = state
@@ -307,13 +327,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         def invalid(message: str) -> Response:
             return _error(provider, SemanticReply("error", text=message, status_code=400, error_type="invalid_request_error"), _id("req"))
 
-        raw = await request.body()
-        try:
-            body = json.loads(raw or b"{}")
-        except json.JSONDecodeError:
-            return invalid("Request body must be JSON")
-        if not isinstance(body, dict):
-            return invalid("Request body must be an object")
+        body = await _read_json(request)
         settings = store.get_settings()
         body = dict(body)
         if provider == "gemini":
@@ -426,10 +440,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
     @app.post("/anthropic/v1/messages/count_tokens")
     async def count_message_tokens(request: Request) -> Response:
-        try:
-            body = await request.json()
-        except json.JSONDecodeError:
-            return JSONResponse({"type": "error", "error": {"type": "invalid_request_error", "message": "Request body must be JSON"}}, status_code=400)
+        body = await _read_json(request)
         settings = store.get_settings()
         anthropic_default = next((config["name"] for config in settings["model_configs"] if config["protocol"] == "anthropic"), "")
         body.setdefault("model", anthropic_default)
@@ -486,14 +497,14 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     @app.post("/__lmmock/api/rules")
     async def create_rule(request: Request) -> Response:
         try:
-            return JSONResponse(store.create_rule(await request.json()), status_code=201)
+            return JSONResponse(store.create_rule(await _read_json(request)), status_code=201)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
     @app.put("/__lmmock/api/rules/{rule_id}")
     async def update_rule(rule_id: int, request: Request) -> Response:
         try:
-            result = store.update_rule(rule_id, await request.json())
+            result = store.update_rule(rule_id, await _read_json(request))
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(result) if result else JSONResponse({"error": "Rule not found"}, status_code=404)
@@ -504,7 +515,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
     @app.post("/__lmmock/api/rules/reorder")
     async def reorder(request: Request) -> list[dict[str, Any]]:
-        data = await request.json()
+        data = await _read_json(request)
         for priority, rule_id in enumerate(data.get("ids", []), 1):
             current = next((rule for rule in store.list_rules() if rule["id"] == int(rule_id)), None)
             if current:
@@ -519,14 +530,14 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     @app.post("/__lmmock/api/groups")
     async def create_group(request: Request) -> Response:
         try:
-            return JSONResponse(store.create_group(await request.json()), status_code=201)
+            return JSONResponse(store.create_group(await _read_json(request)), status_code=201)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
     @app.put("/__lmmock/api/groups/{group_id}")
     async def update_group(group_id: int, request: Request) -> Response:
         try:
-            result = store.update_group(group_id, await request.json())
+            result = store.update_group(group_id, await _read_json(request))
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(result) if result else JSONResponse({"error": "Group not found"}, status_code=404)
@@ -541,7 +552,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
     @app.post("/__lmmock/api/preview")
     async def preview(request: Request) -> Response:
-        data = await request.json()
+        data = await _read_json(request)
         protocol = data.get("protocol", "openai_chat")
         mapping = {"openai_chat": ("openai", "chat"), "openai_completions": ("openai", "completions"), "openai_responses": ("openai", "responses"), "anthropic_messages": ("anthropic", "messages"), "gemini_generate_content": ("gemini", "generateContent")}
         provider, operation = mapping.get(protocol, ("openai", "chat"))
@@ -561,7 +572,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     @app.put("/__lmmock/api/settings")
     async def update_settings(request: Request) -> Response:
         try:
-            return JSONResponse(store.set_settings(await request.json()))
+            return JSONResponse(store.set_settings(await _read_json(request)))
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
