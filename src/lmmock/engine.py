@@ -135,6 +135,10 @@ def _fool_ai(value: str) -> str:
 
 
 def _template(value: Any, variables: dict[str, str]) -> Any:
+    if isinstance(value, dict):
+        return {key: _template(item, variables) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_template(item, variables) for item in value]
     if not isinstance(value, str):
         return value
 
@@ -178,8 +182,14 @@ def resolve(rules: list[dict[str, Any]], request: SemanticRequest) -> tuple[dict
         if hasattr(match, "groupdict"):
             variables.update({key: str(value) for key, value in match.groupdict().items() if value is not None})
             variables.update({str(index): value for index, value in enumerate(match.groups(), 1) if value is not None})
-        reply_data = {key: _template(value, variables) for key, value in (rule.get("reply") or {}).items()}
         reply_type = rule.get("reply_type", "text")
+        raw_reply = dict(rule.get("reply") or {})
+        if reply_type == "json" and isinstance(raw_reply.get("content"), str):
+            try:
+                raw_reply["content"] = json.loads(raw_reply["content"])
+            except json.JSONDecodeError:
+                pass
+        reply_data = _template(raw_reply, variables)
         if reply_type == "tool":
             arguments = reply_data.get("arguments", {})
             if isinstance(arguments, str):
