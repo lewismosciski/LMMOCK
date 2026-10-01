@@ -206,6 +206,25 @@ class Store:
             conn.commit()
             return cur.rowcount > 0
 
+    def reorder_rules(self, ids: list[int]) -> list[dict[str, Any]]:
+        if not isinstance(ids, list) or any(type(rule_id) is not int or rule_id <= 0 for rule_id in ids):
+            raise ValueError("ids must be a list of positive integers")
+        if len(ids) != len(set(ids)):
+            raise ValueError("ids must not contain duplicates")
+        if not ids:
+            return self.list_rules()
+        with self.lock, self._connection() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = {row["id"] for row in conn.execute("SELECT id FROM rules")}
+            if any(rule_id not in existing for rule_id in ids):
+                raise ValueError("ids must refer to existing rules")
+            now = self._now()
+            conn.executemany(
+                "UPDATE rules SET priority=?, updated_at=? WHERE id=?",
+                [(priority, now, rule_id) for priority, rule_id in enumerate(ids, 1)],
+            )
+            return [self._row(row) for row in conn.execute("SELECT * FROM rules ORDER BY priority ASC, id ASC")]
+
     @staticmethod
     def _group_row(row: sqlite3.Row) -> dict[str, Any]:
         return {

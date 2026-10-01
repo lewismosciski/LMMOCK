@@ -534,14 +534,12 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         return Response(status_code=204) if store.delete_rule(rule_id) else JSONResponse({"error": "Rule not found"}, status_code=404)
 
     @app.post("/__lmmock/api/rules/reorder")
-    async def reorder(request: Request) -> list[dict[str, Any]]:
+    async def reorder(request: Request) -> Response:
         data = await _read_json(request)
-        for priority, rule_id in enumerate(data.get("ids", []), 1):
-            current = next((rule for rule in store.list_rules() if rule["id"] == int(rule_id)), None)
-            if current:
-                current["priority"] = priority
-                store.update_rule(int(rule_id), current)
-        return store.list_rules()
+        try:
+            return JSONResponse(store.reorder_rules(data.get("ids", [])))
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
 
     @app.get("/__lmmock/api/groups")
     async def list_groups() -> list[dict[str, Any]]:
