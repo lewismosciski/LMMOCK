@@ -371,7 +371,11 @@ class Store:
         result["enabled"] = bool(result["enabled"])
         result["priority"] = int(result["priority"])
         result["model_pattern"] = str(result.get("model_pattern", "*")).strip()[:1000] or "*"
-        result["scopes"] = list(result["scopes"] or ["*"])
+        scopes = result["scopes"]
+        allowed_scopes = {"*", "chat", "completions", "responses", "messages", "generateContent"}
+        if not isinstance(scopes, list) or any(not isinstance(scope, str) or scope not in allowed_scopes for scope in scopes):
+            raise ValueError("scopes must be a list containing only: *, chat, completions, responses, messages, generateContent")
+        result["scopes"] = list(scopes or ["*"])
         result["match_type"] = str(result["match_type"])
         if result["match_type"] not in {"all", "contains", "regex"}:
             raise ValueError("match_type must be all, contains, or regex")
