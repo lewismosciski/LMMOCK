@@ -25,7 +25,7 @@ jobs:
       - run: python -m pytest -q
       - run: python -m build
       - run: python -m twine check dist/*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: python-dist
           path: dist/*
@@ -70,7 +70,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force release-assets | Out-Null
           Compress-Archive -Path dist/lmmock -DestinationPath "release-assets/lmmock-${env:GITHUB_REF_NAME}-${{ matrix.asset }}.zip"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.asset }}
           path: release-assets/*
